@@ -1,30 +1,11 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import Chat from '../models/chats.js';
 
-const filePath = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../data/chat-relay.json',
-);
+let enabled = new Set();
 
-function load() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (Array.isArray(parsed)) {
-      return new Set(parsed.map(Number).filter(Number.isFinite));
-    }
-  } catch {
-    // first run
-  }
-  return new Set();
+export async function loadChatRelay() {
+  const docs = await Chat.find({ chatRelay: true }, { chatId: 1 }).lean();
+  enabled = new Set(docs.map((doc) => Number(doc.chatId)).filter(Number.isFinite));
 }
-
-function save(ids) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify([...ids])}\n`);
-}
-
-const enabled = load();
 
 export function isChatRelayEnabled(chatId) {
   return enabled.has(Number(chatId));
@@ -34,13 +15,32 @@ export function listChatRelay() {
   return [...enabled];
 }
 
-export function setChatRelay(chatId, on) {
+export async function setChatRelay(chatId, on, title = '') {
   const id = Number(chatId);
+  const $set = {
+    chatRelay: on,
+    updated: new Date(),
+  };
+  if (title) {
+    $set.title = title;
+  }
+
+  await Chat.findOneAndUpdate(
+    { chatId: id },
+    {
+      $set,
+      $setOnInsert: {
+        chatId: id,
+        created: new Date(),
+      },
+    },
+    { upsert: true },
+  );
+
   if (on) {
     enabled.add(id);
   } else {
     enabled.delete(id);
   }
-  save(enabled);
   return on;
 }

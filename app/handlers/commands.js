@@ -100,12 +100,12 @@ export function registerCommands(bot) {
       return;
     }
     if (['on', 'вкл', 'enable'].includes(args)) {
-      setChatRelay(ctx.chat.id, true);
+      await setChatRelay(ctx.chat.id, true, ctx.chat.title);
       await ctx.reply(chatStatus(true), HTML);
       return;
     }
     if (['off', 'выкл', 'disable'].includes(args)) {
-      setChatRelay(ctx.chat.id, false);
+      await setChatRelay(ctx.chat.id, false, ctx.chat.title);
       await ctx.reply(chatStatus(false), HTML);
       return;
     }

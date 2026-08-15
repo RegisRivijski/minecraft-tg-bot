@@ -31,4 +31,20 @@ export default {
     logPath: process.env.MINECRAFT_LOG_PATH || '/minecraft-data/logs/latest.log',
     logPollMs: Number(process.env.MINECRAFT_LOG_POLL_MS || 1000),
   },
+  db: {
+    mongodb: {
+      url: process.env.MONGODB_1_HOSTNAME,
+      options: {
+        dbName: 'minecraftTgBot',
+        user: process.env.MONGO_INITDB_ROOT_USERNAME,
+        pass: process.env.MONGO_INITDB_ROOT_PASSWORD,
+        authSource: 'admin',
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        family: 4,
+        retryWrites: false,
+      },
+    },
+  },
 };

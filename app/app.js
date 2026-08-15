@@ -6,7 +6,9 @@ import allowedChat from './middlewares/allowedChat.js';
 import errorHandler from './middlewares/errorHandler.js';
 import { registerCommands } from './handlers/commands.js';
 import { registerBotCommands } from './helpers/telegramCommands.js';
+import minecraftTgBot from './classes/MongooseSingleton.js';
 import { closeRcon } from './modules/rconClient.js';
+import { loadChatRelay } from './modules/chatRelay.js';
 import { startPlayerWatcher } from './modules/playerWatcher.js';
 import { startLogWatcher } from './modules/logWatcher.js';
 
@@ -24,6 +26,9 @@ export default async function main() {
   if (!OWNER_IDS.length && !CHAT_IDS.length) {
     console.warn('[acl] OWNER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
   }
+
+  await minecraftTgBot.asPromise();
+  await loadChatRelay();
 
   const apiRoot = buildTelegramApiRoot();
   const bot = new Telegraf(config.bot.apiToken, apiRoot ? { telegram: { apiRoot } } : {});
@@ -52,6 +57,7 @@ export default async function main() {
     Owners: OWNER_IDS.join(', ') || '—',
     Chats: CHAT_IDS.join(', ') || '—',
     Log: config.server.logPath,
+    Mongo: config.db.mongodb.options.dbName,
     LocalApi: Boolean(apiRoot),
   });
 
@@ -59,6 +65,7 @@ export default async function main() {
     stopWatcher();
     stopLogWatcher();
     await closeRcon();
+    await minecraftTgBot.close().catch(() => {});
     bot.stop(signal);
     process.exit(0);
   };

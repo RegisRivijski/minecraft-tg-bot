@@ -11,6 +11,7 @@
   "author": "Artur Petrov",
   "license": "ISC",
   "dependencies": {
+    "mongoose": "^8.24.3",
     "rcon-client": "^4.2.5",
     "telegraf": "^4.16.3"
   }
