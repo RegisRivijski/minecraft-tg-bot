@@ -5,7 +5,7 @@
  * Узнать id: напиши боту /start в личке или в группе.
  */
 export const OWNER_IDS = [
-  // 123456789,
+  755610236,
 ];
 
 export const CHAT_IDS = [
