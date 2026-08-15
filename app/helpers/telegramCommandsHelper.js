@@ -7,7 +7,8 @@ const MENU_COMMANDS = [
   { command: 'difficulty', description: 'Сложность' },
   { command: 'chat', description: 'Чат мира в этот чат' },
   { command: 'joins', description: 'Вход и выход игроков' },
-  { command: 'events', description: 'Смерти и достижения' },
+  { command: 'deaths', description: 'Смерти игроков' },
+  { command: 'advancements', description: 'Достижения' },
   { command: 'say', description: 'Сказать в чат мира' },
 ];
 

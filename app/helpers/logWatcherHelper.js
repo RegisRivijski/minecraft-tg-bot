@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import config from '../../config/default.js';
 import { HTML, chatRelayLine, worldEventLine } from './copyHelper.js';
 import { parseChatLine, parseJoinLeaveLine, parseWorldEventLine } from './minecraftHelper.js';
-import { listChatRelay, listEventRelay, listJoinRelay } from './chatRelayHelper.js';
+import { listAdvancementRelay, listChatRelay, listDeathRelay, listJoinRelay } from './chatRelayHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
 
 function previewLines(lines) {
@@ -36,7 +36,8 @@ export function startLogWatcher(telegram) {
     const chatMessages = [];
     const joined = [];
     const left = [];
-    const events = [];
+    const deaths = [];
+    const advancements = [];
 
     for (const line of lines) {
       const joinLeave = parseJoinLeaveLine(line);
@@ -60,14 +61,20 @@ export function startLogWatcher(telegram) {
       const event = parseWorldEventLine(line);
       if (event) {
         console.info(`[log] parsed ${event.type}: ${event.text.slice(0, 160)}`);
-        events.push(worldEventLine(event.text));
+        const formatted = worldEventLine(event);
+        if (event.type === 'advancement') {
+          advancements.push(formatted);
+        } else {
+          deaths.push(formatted);
+        }
       }
     }
 
     const chatChats = listChatRelay();
     const joinChats = listJoinRelay();
-    const eventChats = listEventRelay();
-    console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length} events=${events.length}; relays chat=[${chatChats.join(', ') || '—'}] joins=[${joinChats.join(', ') || '—'}] events=[${eventChats.join(', ') || '—'}]`);
+    const deathChats = listDeathRelay();
+    const advancementChats = listAdvancementRelay();
+    console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length} deaths=${deaths.length} advancements=${advancements.length}; relays chat=[${chatChats.join(', ') || '—'}] joins=[${joinChats.join(', ') || '—'}] deaths=[${deathChats.join(', ') || '—'}] advancements=[${advancementChats.join(', ') || '—'}]`);
 
     if (chatMessages.length && !chatChats.length) {
       console.info('[log] skip chat: /chat is off for all chats');
@@ -75,29 +82,28 @@ export function startLogWatcher(telegram) {
     if ((joined.length || left.length) && !joinChats.length) {
       console.info('[log] skip join/leave: /joins is off for all chats');
     }
-    if (events.length && !eventChats.length) {
-      console.info('[log] skip events: /events is off for all chats');
+    if (deaths.length && !deathChats.length) {
+      console.info('[log] skip deaths: /deaths is off for all chats');
+    }
+    if (advancements.length && !advancementChats.length) {
+      console.info('[log] skip advancements: /advancements is off for all chats');
     }
 
-    if (chatMessages.length && chatChats.length) {
-      const text = chatMessages.join('\n');
-      await Promise.all(chatChats.map((chatId) => (
+    const send = async (chatIds, text, label) => {
+      if (!text || !chatIds.length) {
+        return;
+      }
+      await Promise.all(chatIds.map((chatId) => (
         telegram.sendMessage(chatId, text, HTML).catch((err) => {
-          console.warn(`[chat] chat ${chatId}:`, err.message);
+          console.warn(`[${label}] chat ${chatId}:`, err.message);
         })
       )));
-      console.info(`[log] sent chat to ${chatChats.length} chat(s)`);
-    }
+      console.info(`[log] sent ${label} to ${chatIds.length} chat(s)`);
+    };
 
-    if (events.length && eventChats.length) {
-      const text = events.join('\n');
-      await Promise.all(eventChats.map((chatId) => (
-        telegram.sendMessage(chatId, text, HTML).catch((err) => {
-          console.warn(`[events] chat ${chatId}:`, err.message);
-        })
-      )));
-      console.info(`[log] sent events to ${eventChats.length} chat(s)`);
-    }
+    await send(chatChats, chatMessages.join('\n'), 'chat');
+    await send(deathChats, deaths.join('\n'), 'deaths');
+    await send(advancementChats, advancements.join('\n'), 'advancements');
 
     await notifyJoinLeave(telegram, { joined, left });
   };

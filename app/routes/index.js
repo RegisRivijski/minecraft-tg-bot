@@ -13,6 +13,8 @@ export function registerRoutes(bot) {
 
   bot.command('chat', chatController.chat);
   bot.command('joins', chatController.joins);
+  bot.command('deaths', chatController.deaths);
+  bot.command('advancements', chatController.advancements);
   bot.command('events', chatController.events);
 
   bot.command('time', worldController.time);

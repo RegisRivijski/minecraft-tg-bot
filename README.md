@@ -8,7 +8,7 @@ Telegram-бот для SMP-сервера **artur-petrov**. Через RCON по
 - Уведомления о join / leave в разрешённые чаты
 - Ретрансляция чата Minecraft → Telegram (`/chat on|off`)
 - Вход и выход игроков в выбранный чат (`/joins on|off`)
-- Смерти и достижения (`/events on|off`)
+- Смерти игроков (`/deaths on|off`) и достижения (`/advancements on|off`)
 - Команды оператора: время, погода, whitelist, произвольный RCON
 - ACL: только указанные user id и group chat id
 
@@ -25,7 +25,7 @@ app/
     mainController.js    # /start, /help
     serverController.js  # /server, /list
     worldController.js   # /time, /weather, /seed, /difficulty
-    chatController.js    # /chat, /joins, /events
+    chatController.js    # /chat, /joins, /deaths, /advancements
     adminController.js   # /say, /whitelist, /rcon
   helpers/               # бизнес-логика и тексты ответов
   middlewares/           # ACL и обработка ошибок
@@ -117,7 +117,8 @@ npm start
 | `/difficulty peaceful\|easy\|normal\|hard` | оператор | Установить сложность |
 | `/chat on\|off` | все | Ретрансляция чата мира в этот Telegram-чат |
 | `/joins on\|off` | все | Вход и выход игроков в этот Telegram-чат |
-| `/events on\|off` | все | Смерти и достижения в этот Telegram-чат |
+| `/deaths on\|off` | все | Смерти игроков в этот Telegram-чат |
+| `/advancements on\|off` | все | Достижения в этот Telegram-чат |
 | `/say <текст>` | все | Сообщение в чат мира |
 | `/weather clear\|rain\|thunder` | оператор | Погода |
 | `/whitelist add\|remove\|list <ник>` | оператор | Вайтлист |

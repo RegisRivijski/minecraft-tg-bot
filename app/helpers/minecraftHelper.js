@@ -134,11 +134,15 @@ export function describeDaytime(ticks) {
   };
 }
 
+export function formatPlayerName(name) {
+  return `<i><code>${escapeHtml(name)}</code></i>`;
+}
+
 export function formatPlayerNames(players) {
   if (!players.length) {
     return 'нет игроков';
   }
-  return players.map((name) => `<code>${escapeHtml(name)}</code>`).join(', ');
+  return players.map(formatPlayerName).join(', ');
 }
 
 export function parseTps(raw) {
@@ -293,6 +297,9 @@ const EVENT_NOISE = [
   /^com\./,
   /^\s*at /,
   /^Caused by:/,
+  / died, message: '/,
+  /^Named entity /,
+  /\['[^']*'\/\d+, uuid='[^']+'/,
 ];
 
 const ADVANCEMENT_LINE = [

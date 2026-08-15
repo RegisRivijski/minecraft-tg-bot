@@ -1,17 +1,22 @@
 import {
+  isAdvancementRelayEnabled,
   isChatRelayEnabled,
-  isEventRelayEnabled,
+  isDeathRelayEnabled,
   isJoinRelayEnabled,
+  setAdvancementRelay,
   setChatRelay,
-  setEventRelay,
+  setDeathRelay,
   setJoinRelay,
 } from '../helpers/chatRelayHelper.js';
 import {
   HTML,
+  advancementsStatus,
+  advancementsUsage,
   chatStatus,
   chatUsage,
-  eventsStatus,
-  eventsUsage,
+  deathsStatus,
+  deathsUsage,
+  eventsSplitHint,
   joinsStatus,
   joinsUsage,
 } from '../helpers/copyHelper.js';
@@ -62,11 +67,45 @@ export function joins(ctx) {
   });
 }
 
-export function events(ctx) {
+export function deaths(ctx) {
   return handleToggle(ctx, {
-    isEnabled: isEventRelayEnabled,
-    setEnabled: setEventRelay,
-    status: eventsStatus,
-    usage: eventsUsage,
+    isEnabled: isDeathRelayEnabled,
+    setEnabled: setDeathRelay,
+    status: deathsStatus,
+    usage: deathsUsage,
   });
+}
+
+export function advancements(ctx) {
+  return handleToggle(ctx, {
+    isEnabled: isAdvancementRelayEnabled,
+    setEnabled: setAdvancementRelay,
+    status: advancementsStatus,
+    usage: advancementsUsage,
+  });
+}
+
+export async function events(ctx) {
+  const args = commandArgs(ctx).toLowerCase();
+  const chatId = ctx.chat.id;
+  if (!args) {
+    await ctx.reply([
+      deathsStatus(isDeathRelayEnabled(chatId)),
+      advancementsStatus(isAdvancementRelayEnabled(chatId)),
+      '',
+      eventsSplitHint(),
+    ].join('\n'), HTML);
+    return;
+  }
+  const on = parseToggle(args);
+  if (on == null) {
+    await ctx.reply(eventsSplitHint(), HTML);
+    return;
+  }
+  await setDeathRelay(chatId, on, ctx.chat.title);
+  await setAdvancementRelay(chatId, on, ctx.chat.title);
+  await ctx.reply([
+    deathsStatus(on),
+    advancementsStatus(on),
+  ].join('\n'), HTML);
 }

@@ -2,17 +2,41 @@ import Chat from '../models/minecraftTgBot/chats.js';
 
 let chatRelay = new Set();
 let joinRelay = new Set();
-let eventRelay = new Set();
+let deathRelay = new Set();
+let advancementRelay = new Set();
+
+function inheritedRelay(value, fallback) {
+  if (value === true || value === false) {
+    return value;
+  }
+  return Boolean(fallback);
+}
 
 export async function loadChatRelay() {
   const docs = await Chat.find(
-    { $or: [{ chatRelay: true }, { joinRelay: true }, { eventRelay: true }] },
-    { chatId: 1, chatRelay: 1, joinRelay: 1, eventRelay: 1 },
+    {
+      $or: [
+        { chatRelay: true },
+        { joinRelay: true },
+        { eventRelay: true },
+        { deathRelay: true },
+        { advancementRelay: true },
+      ],
+    },
+    {
+      chatId: 1,
+      chatRelay: 1,
+      joinRelay: 1,
+      eventRelay: 1,
+      deathRelay: 1,
+      advancementRelay: 1,
+    },
   ).lean();
 
   chatRelay = new Set();
   joinRelay = new Set();
-  eventRelay = new Set();
+  deathRelay = new Set();
+  advancementRelay = new Set();
 
   for (const doc of docs) {
     const id = Number(doc.chatId);
@@ -25,11 +49,14 @@ export async function loadChatRelay() {
     if (doc.joinRelay) {
       joinRelay.add(id);
     }
-    if (doc.eventRelay) {
-      eventRelay.add(id);
+    if (inheritedRelay(doc.deathRelay, doc.eventRelay)) {
+      deathRelay.add(id);
+    }
+    if (inheritedRelay(doc.advancementRelay, doc.eventRelay)) {
+      advancementRelay.add(id);
     }
   }
-  console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}] events=[${[...eventRelay].join(', ') || '—'}]`);
+  console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}] deaths=[${[...deathRelay].join(', ') || '—'}] advancements=[${[...advancementRelay].join(', ') || '—'}]`);
 }
 
 export function isChatRelayEnabled(chatId) {
@@ -40,8 +67,12 @@ export function isJoinRelayEnabled(chatId) {
   return joinRelay.has(Number(chatId));
 }
 
-export function isEventRelayEnabled(chatId) {
-  return eventRelay.has(Number(chatId));
+export function isDeathRelayEnabled(chatId) {
+  return deathRelay.has(Number(chatId));
+}
+
+export function isAdvancementRelayEnabled(chatId) {
+  return advancementRelay.has(Number(chatId));
 }
 
 export function listChatRelay() {
@@ -52,8 +83,12 @@ export function listJoinRelay() {
   return [...joinRelay];
 }
 
-export function listEventRelay() {
-  return [...eventRelay];
+export function listDeathRelay() {
+  return [...deathRelay];
+}
+
+export function listAdvancementRelay() {
+  return [...advancementRelay];
 }
 
 async function persistRelay(chatId, fields, title = '') {
@@ -103,9 +138,16 @@ export async function setJoinRelay(chatId, on, title = '') {
   return on;
 }
 
-export async function setEventRelay(chatId, on, title = '') {
-  const id = applyCache(eventRelay, chatId, on);
-  await persistRelay(id, { eventRelay: on }, title);
-  console.info(`[relay] events ${id} ${on ? 'on' : 'off'}`);
+export async function setDeathRelay(chatId, on, title = '') {
+  const id = applyCache(deathRelay, chatId, on);
+  await persistRelay(id, { deathRelay: on }, title);
+  console.info(`[relay] deaths ${id} ${on ? 'on' : 'off'}`);
+  return on;
+}
+
+export async function setAdvancementRelay(chatId, on, title = '') {
+  const id = applyCache(advancementRelay, chatId, on);
+  await persistRelay(id, { advancementRelay: on }, title);
+  console.info(`[relay] advancements ${id} ${on ? 'on' : 'off'}`);
   return on;
 }

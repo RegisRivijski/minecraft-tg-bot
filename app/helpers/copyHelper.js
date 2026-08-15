@@ -1,5 +1,5 @@
 import config from '../../config/default.js';
-import { describeTps, escapeHtml, formatPlayerNames } from './minecraftHelper.js';
+import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames } from './minecraftHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
 
@@ -26,7 +26,8 @@ export function helpText(owner = false) {
     '/difficulty — сложность',
     '/chat on|off — чат мира в этот чат',
     '/joins on|off — вход и выход игроков в этот чат',
-    '/events on|off — смерти и достижения в этот чат',
+    '/deaths on|off — смерти игроков в этот чат',
+    '/advancements on|off — достижения в этот чат',
     '/say &lt;текст&gt; — сказать в чат мира',
   ];
   if (owner) {
@@ -149,7 +150,7 @@ export function sayDone(name) {
   if (!name) {
     return '[Сервер] Сообщение отправлено в чат мира.';
   }
-  return `[Сервер] ${escapeHtml(name)}: сообщение отправлено в чат мира.`;
+  return `[Сервер] ${formatPlayerName(name)}: сообщение отправлено в чат мира.`;
 }
 
 export function whitelistUsage() {
@@ -193,29 +194,46 @@ export function joinsStatus(enabled) {
   return enabled ? 'Вход и выход: включён' : 'Вход и выход: выключен';
 }
 
-export function eventsUsage() {
-  return 'Использование: /events on|off';
+export function deathsUsage() {
+  return 'Использование: /deaths on|off';
 }
 
-export function eventsStatus(enabled) {
-  return enabled ? 'Смерти и достижения: включены' : 'Смерти и достижения: выключены';
+export function deathsStatus(enabled) {
+  return enabled ? 'Смерти: включены' : 'Смерти: выключены';
 }
 
-export function worldEventLine(text) {
-  return escapeHtml(text);
+export function advancementsUsage() {
+  return 'Использование: /advancements on|off';
+}
+
+export function advancementsStatus(enabled) {
+  return enabled ? 'Достижения: включены' : 'Достижения: выключены';
+}
+
+export function eventsSplitHint() {
+  return 'Используйте /deaths и /advancements';
+}
+
+export function worldEventLine(event) {
+  const text = escapeHtml(event.text);
+  const name = event.name ? escapeHtml(event.name) : '';
+  if (!name || !text.startsWith(name)) {
+    return text;
+  }
+  return `${formatPlayerName(event.name)}${text.slice(name.length)}`;
 }
 
 export function chatRelayLine(name, message) {
-  return `&lt;${escapeHtml(name)}&gt; ${escapeHtml(message)}`;
+  return `&lt;${formatPlayerName(name)}&gt; ${escapeHtml(message)}`;
 }
 
 export function joinLeaveText(joined, left, current) {
   const lines = [];
   for (const name of joined) {
-    lines.push(`${escapeHtml(name)} присоединился к игре`);
+    lines.push(`${formatPlayerName(name)} присоединился к игре`);
   }
   for (const name of left) {
-    lines.push(`${escapeHtml(name)} вышел из игры`);
+    lines.push(`${formatPlayerName(name)} вышел из игры`);
   }
   if (current) {
     lines.push('');

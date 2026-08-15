@@ -24,6 +24,12 @@ const chatsSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  deathRelay: {
+    type: Boolean,
+  },
+  advancementRelay: {
+    type: Boolean,
+  },
   updated: {
     type: Date,
     default: Date.now,
