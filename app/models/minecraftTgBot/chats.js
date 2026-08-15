@@ -20,6 +20,10 @@ const chatsSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  eventRelay: {
+    type: Boolean,
+    default: false,
+  },
   updated: {
     type: Date,
     default: Date.now,

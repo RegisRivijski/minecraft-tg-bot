@@ -2,15 +2,17 @@ import Chat from '../models/minecraftTgBot/chats.js';
 
 let chatRelay = new Set();
 let joinRelay = new Set();
+let eventRelay = new Set();
 
 export async function loadChatRelay() {
   const docs = await Chat.find(
-    { $or: [{ chatRelay: true }, { joinRelay: true }] },
-    { chatId: 1, chatRelay: 1, joinRelay: 1 },
+    { $or: [{ chatRelay: true }, { joinRelay: true }, { eventRelay: true }] },
+    { chatId: 1, chatRelay: 1, joinRelay: 1, eventRelay: 1 },
   ).lean();
 
   chatRelay = new Set();
   joinRelay = new Set();
+  eventRelay = new Set();
 
   for (const doc of docs) {
     const id = Number(doc.chatId);
@@ -23,8 +25,11 @@ export async function loadChatRelay() {
     if (doc.joinRelay) {
       joinRelay.add(id);
     }
+    if (doc.eventRelay) {
+      eventRelay.add(id);
+    }
   }
-  console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}]`);
+  console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}] events=[${[...eventRelay].join(', ') || '—'}]`);
 }
 
 export function isChatRelayEnabled(chatId) {
@@ -35,12 +40,20 @@ export function isJoinRelayEnabled(chatId) {
   return joinRelay.has(Number(chatId));
 }
 
+export function isEventRelayEnabled(chatId) {
+  return eventRelay.has(Number(chatId));
+}
+
 export function listChatRelay() {
   return [...chatRelay];
 }
 
 export function listJoinRelay() {
   return [...joinRelay];
+}
+
+export function listEventRelay() {
+  return [...eventRelay];
 }
 
 async function persistRelay(chatId, fields, title = '') {
@@ -87,5 +100,12 @@ export async function setJoinRelay(chatId, on, title = '') {
   const id = applyCache(joinRelay, chatId, on);
   await persistRelay(id, { joinRelay: on }, title);
   console.info(`[relay] joins ${id} ${on ? 'on' : 'off'}`);
+  return on;
+}
+
+export async function setEventRelay(chatId, on, title = '') {
+  const id = applyCache(eventRelay, chatId, on);
+  await persistRelay(id, { eventRelay: on }, title);
+  console.info(`[relay] events ${id} ${on ? 'on' : 'off'}`);
   return on;
 }

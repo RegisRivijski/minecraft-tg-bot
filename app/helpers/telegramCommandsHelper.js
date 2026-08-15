@@ -7,6 +7,7 @@ const MENU_COMMANDS = [
   { command: 'difficulty', description: 'Сложность' },
   { command: 'chat', description: 'Чат мира в этот чат' },
   { command: 'joins', description: 'Вход и выход игроков' },
+  { command: 'events', description: 'Смерти и достижения' },
 ];
 
 export async function registerBotCommands(bot) {

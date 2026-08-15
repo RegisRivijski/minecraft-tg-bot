@@ -8,6 +8,7 @@ Telegram-бот для SMP-сервера **artur-petrov**. Через RCON по
 - Уведомления о join / leave в разрешённые чаты
 - Ретрансляция чата Minecraft → Telegram (`/chat on|off`)
 - Вход и выход игроков в выбранный чат (`/joins on|off`)
+- Смерти и достижения (`/events on|off`)
 - Команды оператора: время, погода, whitelist, `say`, произвольный RCON
 - ACL: только указанные user id и group chat id
 
@@ -24,7 +25,7 @@ app/
     mainController.js    # /start, /help
     serverController.js  # /server, /list
     worldController.js   # /time, /weather, /seed, /difficulty
-    chatController.js    # /chat, /joins
+    chatController.js    # /chat, /joins, /events
     adminController.js   # /say, /whitelist, /rcon
   helpers/               # бизнес-логика и тексты ответов
   middlewares/           # ACL и обработка ошибок
@@ -116,6 +117,7 @@ npm start
 | `/difficulty peaceful\|easy\|normal\|hard` | оператор | Установить сложность |
 | `/chat on\|off` | все | Ретрансляция чата мира в этот Telegram-чат |
 | `/joins on\|off` | все | Вход и выход игроков в этот Telegram-чат |
+| `/events on\|off` | все | Смерти и достижения в этот Telegram-чат |
 | `/weather clear\|rain\|thunder` | оператор | Погода |
 | `/say <текст>` | оператор | Сообщение в чат мира |
 | `/whitelist add\|remove\|list <ник>` | оператор | Вайтлист |

@@ -13,6 +13,7 @@ export function registerRoutes(bot) {
 
   bot.command('chat', chatController.chat);
   bot.command('joins', chatController.joins);
+  bot.command('events', chatController.events);
 
   bot.command('time', worldController.time);
   bot.command('weather', worldController.weather);

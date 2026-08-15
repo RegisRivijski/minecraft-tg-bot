@@ -26,6 +26,7 @@ export function helpText(owner = false) {
     '/difficulty — сложность',
     '/chat on|off — чат мира в этот чат',
     '/joins on|off — вход и выход игроков в этот чат',
+    '/events on|off — смерти и достижения в этот чат',
   ];
   if (owner) {
     lines.push(
@@ -187,6 +188,18 @@ export function joinsUsage() {
 
 export function joinsStatus(enabled) {
   return enabled ? 'Вход и выход: включён' : 'Вход и выход: выключен';
+}
+
+export function eventsUsage() {
+  return 'Использование: /events on|off';
+}
+
+export function eventsStatus(enabled) {
+  return enabled ? 'Смерти и достижения: включены' : 'Смерти и достижения: выключены';
+}
+
+export function worldEventLine(text) {
+  return escapeHtml(text);
 }
 
 export function chatRelayLine(name, message) {

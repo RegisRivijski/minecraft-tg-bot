@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 
 import config from '../../config/default.js';
-import { HTML, chatRelayLine } from './copyHelper.js';
-import { parseChatLine, parseJoinLeaveLine } from './minecraftHelper.js';
-import { listChatRelay, listJoinRelay } from './chatRelayHelper.js';
+import { HTML, chatRelayLine, worldEventLine } from './copyHelper.js';
+import { parseChatLine, parseJoinLeaveLine, parseWorldEventLine } from './minecraftHelper.js';
+import { listChatRelay, listEventRelay, listJoinRelay } from './chatRelayHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
 
 function previewLines(lines) {
@@ -36,6 +36,7 @@ export function startLogWatcher(telegram) {
     const chatMessages = [];
     const joined = [];
     const left = [];
+    const events = [];
 
     for (const line of lines) {
       const joinLeave = parseJoinLeaveLine(line);
@@ -53,18 +54,29 @@ export function startLogWatcher(telegram) {
       if (chat?.message) {
         console.info(`[log] parsed chat: <${chat.name}> ${chat.message.slice(0, 120)}`);
         chatMessages.push(chatRelayLine(chat.name, chat.message.slice(0, 400)));
+        continue;
+      }
+
+      const event = parseWorldEventLine(line);
+      if (event) {
+        console.info(`[log] parsed ${event.type}: ${event.text.slice(0, 160)}`);
+        events.push(worldEventLine(event.text));
       }
     }
 
     const chatChats = listChatRelay();
     const joinChats = listJoinRelay();
-    console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length}; relays chat=[${chatChats.join(', ') || '—'}] joins=[${joinChats.join(', ') || '—'}]`);
+    const eventChats = listEventRelay();
+    console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length} events=${events.length}; relays chat=[${chatChats.join(', ') || '—'}] joins=[${joinChats.join(', ') || '—'}] events=[${eventChats.join(', ') || '—'}]`);
 
     if (chatMessages.length && !chatChats.length) {
       console.info('[log] skip chat: /chat is off for all chats');
     }
     if ((joined.length || left.length) && !joinChats.length) {
       console.info('[log] skip join/leave: /joins is off for all chats');
+    }
+    if (events.length && !eventChats.length) {
+      console.info('[log] skip events: /events is off for all chats');
     }
 
     if (chatMessages.length && chatChats.length) {
@@ -77,8 +89,20 @@ export function startLogWatcher(telegram) {
       console.info(`[log] sent chat to ${chatChats.length} chat(s)`);
     }
 
+    if (events.length && eventChats.length) {
+      const text = events.join('\n');
+      await Promise.all(eventChats.map((chatId) => (
+        telegram.sendMessage(chatId, text, HTML).catch((err) => {
+          console.warn(`[events] chat ${chatId}:`, err.message);
+        })
+      )));
+      console.info(`[log] sent events to ${eventChats.length} chat(s)`);
+    }
+
     await notifyJoinLeave(telegram, { joined, left });
   };
+
+  console.info(`[log] starting watcher path=${config.server.logPath} poll=${config.server.logPollMs}ms`);
 
   const tick = async () => {
     if (inFlight) {

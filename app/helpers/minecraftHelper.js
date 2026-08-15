@@ -6,7 +6,10 @@ export function escapeHtml(text) {
 }
 
 export function stripMcColor(text) {
-  return String(text || '').replace(/§[0-9a-fk-or]/gi, '').trim();
+  return String(text || '')
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/§[0-9a-fk-or]/gi, '')
+    .trim();
 }
 
 export function commandArgs(ctx) {
@@ -222,8 +225,10 @@ export function stripLogPayload(raw) {
   if (!text) {
     return '';
   }
+
   const prefixed = text.match(/^\[.+?\] \[.+?\]: (.*)$/)
-    || text.match(/^\[.+?\]: (.*)$/);
+    || text.match(/^\[[0-9:.\s]+(?:\s+\w+)?\]: (.*)$/)
+    || text.match(/^\[[^\]]+\]: (.*)$/);
   return (prefixed ? prefixed[1] : text).trim();
 }
 
@@ -260,6 +265,131 @@ export function parseChatLine(raw) {
   const say = payload.match(SERVER_SAY);
   if (say?.groups?.message) {
     return { name: 'Server', message: say.groups.message.trim() };
+  }
+
+  return null;
+}
+
+const EVENT_NOISE = [
+  /^UUID of player /,
+  / logged in with entity id /,
+  / lost connection: /,
+  /^Thread RCON /,
+  /^RCON /,
+  /^Saving /,
+  /^Saved /,
+  /^Can't keep up/,
+  /^Disconnecting /,
+  /^Stopping /,
+  /^Starting /,
+  /^Loading /,
+  /^Preparing /,
+  /^Done \(/,
+  /^Generating /,
+  /moved too quickly/,
+  /^Issued server command/,
+  /^Unknown or incomplete command/,
+  /^Incorrect argument/,
+  /^com\./,
+  /^\s*at /,
+  /^Caused by:/,
+];
+
+const ADVANCEMENT_LINE = [
+  /^(?<name>.+?) has made the advancement \[(?<title>.+)\]$/,
+  /^(?<name>.+?) has completed the challenge \[(?<title>.+)\]$/,
+  /^(?<name>.+?) has reached the goal \[(?<title>.+)\]$/,
+  /^(?<name>.+?) получил(?:а)? достижение \[(?<title>.+)\]$/,
+  /^(?<name>.+?) выполнил(?:а)? задание \[(?<title>.+)\]$/,
+  /^(?<name>.+?) достиг(?:ла)? цели \[(?<title>.+)\]$/,
+];
+
+const DEATH_LINE = [
+  / was slain /,
+  / was shot /,
+  / was blown up/,
+  / was killed /,
+  / drowned/,
+  / burned to death/,
+  / went up in flames/,
+  / walked into (a )?fire/,
+  / fell from a high place/,
+  / fell off /,
+  / fell out of the world/,
+  / hit the ground too hard/,
+  / was squashed /,
+  / was squished /,
+  / starved to death/,
+  / suffocated/,
+  / withered away/,
+  / was pricked to death/,
+  / walked into a cactus/,
+  / experienced kinetic energy/,
+  / blew up/,
+  / tried to swim in lava/,
+  / discovered (the )?floor was lava/,
+  / went off with a bang/,
+  / was poked to death/,
+  / was impaled/,
+  / was doomed to fall/,
+  / didn't want to live in the same world as /,
+  / was fireballed /,
+  / was stung to death/,
+  / froze to death/,
+  / was skewered/,
+  / was struck by lightning/,
+  / was obliterated by a sonically-charged shriek/,
+  / left the confines of this world/,
+  / was roasted in dragon breath/,
+  / was pummeled by/,
+  / walked into danger zone/,
+  / was impaled on a stalagmite/,
+  / fell too far/,
+  / was squashed by a falling/,
+  / was killed by magic/,
+  / was killed by even more magic/,
+  / died$/,
+  / был(?:а)? убит/,
+  / застрелен/,
+  / застрелена/,
+  / утонул/,
+  / утонула/,
+  / сгорел/,
+  / сгорела/,
+  / упал(?:а)? с высоты/,
+  / умер(?:ла)? от голода/,
+  / задохнул(?:ся|ась)/,
+  / взорвал(?:ся|ась)/,
+  / погиб(?:ла)?/,
+  / ударила молния/,
+  / заморожен/,
+];
+
+export function parseWorldEventLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload || EVENT_NOISE.some((pattern) => pattern.test(payload))) {
+    return null;
+  }
+
+  for (const pattern of ADVANCEMENT_LINE) {
+    const match = payload.match(pattern);
+    if (match?.groups?.name) {
+      return {
+        type: 'advancement',
+        name: match.groups.name.trim(),
+        title: match.groups.title?.trim() || '',
+        text: payload,
+      };
+    }
+  }
+
+  if (!/^[A-Za-z0-9_]{1,16} /.test(payload)) {
+    return null;
+  }
+
+  if (DEATH_LINE.some((pattern) => pattern.test(payload))) {
+    const name = payload.split(' ', 1)[0];
+    return { type: 'death', name, text: payload };
   }
 
   return null;

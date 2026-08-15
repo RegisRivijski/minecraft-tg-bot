@@ -41,13 +41,13 @@ export default async function main() {
     console.error('[telegraf]', error.code || error.message);
   });
 
+  const stopWatcher = startPlayerWatcher(bot.telegram);
+  const stopLogWatcher = startLogWatcher(bot.telegram);
+
   await bot.launch();
   await registerBotCommands(bot).catch((error) => {
     console.warn('[telegram] setMyCommands failed:', error.message);
   });
-
-  const stopWatcher = startPlayerWatcher(bot.telegram);
-  const stopLogWatcher = startLogWatcher(bot.telegram);
 
   console.table({
     Application: config.application.name,
