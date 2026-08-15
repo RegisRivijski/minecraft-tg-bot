@@ -6,6 +6,7 @@ const MENU_COMMANDS = [
   { command: 'seed', description: 'Зерно мира' },
   { command: 'difficulty', description: 'Сложность' },
   { command: 'chat', description: 'Чат мира в этот чат' },
+  { command: 'joins', description: 'Вход и выход игроков' },
 ];
 
 export async function registerBotCommands(bot) {

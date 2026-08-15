@@ -1,5 +1,5 @@
 import { canUseBot } from '../constants/access.js';
-import { deniedText, HTML } from '../helpers/copy.js';
+import { deniedText, HTML } from '../helpers/copyHelper.js';
 
 export default async function allowedChat(ctx, next) {
   if (canUseBot(ctx)) {

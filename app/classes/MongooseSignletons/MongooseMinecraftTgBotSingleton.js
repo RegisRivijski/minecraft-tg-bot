@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import config from '../../config/default.js';
+import config from '../../../config/default.js';
 
 const minecraftTgBot = mongoose.createConnection(
   config.db.mongodb.url,

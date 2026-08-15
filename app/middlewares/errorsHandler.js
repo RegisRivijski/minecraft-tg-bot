@@ -1,11 +1,11 @@
-import { connectionLost, unknownError } from '../helpers/copy.js';
+import { connectionLost, unknownError } from '../helpers/copyHelper.js';
 
 function isConnectionError(err) {
   const message = err.message || '';
   return /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|timeout|not connected/i.test(message);
 }
 
-export default async function errorHandler(ctx, next) {
+export default async function errorsHandler(ctx, next) {
   try {
     await next();
   } catch (err) {

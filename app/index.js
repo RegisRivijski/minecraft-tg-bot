@@ -3,14 +3,14 @@ import { Telegraf } from 'telegraf';
 import config from '../config/default.js';
 import { CHAT_IDS, OWNER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
-import errorHandler from './middlewares/errorHandler.js';
-import { registerCommands } from './handlers/commands.js';
-import { registerBotCommands } from './helpers/telegramCommands.js';
-import minecraftTgBot from './classes/MongooseSingleton.js';
-import { closeRcon } from './modules/rconClient.js';
-import { loadChatRelay } from './modules/chatRelay.js';
-import { startPlayerWatcher } from './modules/playerWatcher.js';
-import { startLogWatcher } from './modules/logWatcher.js';
+import errorsHandler from './middlewares/errorsHandler.js';
+import { registerRoutes } from './routes/index.js';
+import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
+import minecraftTgBot from './classes/MongooseSignletons/MongooseMinecraftTgBotSingleton.js';
+import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
+import { loadChatRelay } from './helpers/chatRelayHelper.js';
+import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
+import { startLogWatcher } from './helpers/logWatcherHelper.js';
 
 function buildTelegramApiRoot() {
   if (!config.telegramBotApi.host || !config.telegramBotApi.port) {
@@ -33,9 +33,9 @@ export default async function main() {
   const apiRoot = buildTelegramApiRoot();
   const bot = new Telegraf(config.bot.apiToken, apiRoot ? { telegram: { apiRoot } } : {});
 
-  bot.use(errorHandler);
+  bot.use(errorsHandler);
   bot.use(allowedChat);
-  registerCommands(bot);
+  registerRoutes(bot);
 
   bot.catch((error) => {
     console.error('[telegraf]', error.code || error.message);

@@ -30,10 +30,3 @@ export function canUseBot(ctx) {
 export function isOwnerCtx(ctx) {
   return isOwner(ctx.from?.id);
 }
-
-export function notifyChatIds() {
-  if (CHAT_IDS.length) {
-    return CHAT_IDS;
-  }
-  return OWNER_IDS;
-}

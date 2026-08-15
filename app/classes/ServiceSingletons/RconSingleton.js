@@ -1,6 +1,6 @@
 import { Rcon } from 'rcon-client';
 
-import config from '../../config/default.js';
+import config from '../../../config/default.js';
 
 let client = null;
 let connecting = null;

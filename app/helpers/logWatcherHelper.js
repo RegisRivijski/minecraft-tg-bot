@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 
 import config from '../../config/default.js';
-import { HTML, chatRelayLine } from '../helpers/copy.js';
-import { parseChatLine } from '../helpers/minecraft.js';
-import { listChatRelay } from './chatRelay.js';
+import { HTML, chatRelayLine } from './copyHelper.js';
+import { parseChatLine } from './minecraftHelper.js';
+import { listChatRelay } from './chatRelayHelper.js';
 
 export function startLogWatcher(telegram) {
   let offset = null;

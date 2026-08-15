@@ -1,5 +1,5 @@
 import config from '../../config/default.js';
-import { escapeHtml, formatPlayerNames } from '../helpers/minecraft.js';
+import { escapeHtml, formatPlayerNames } from './minecraftHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
 
@@ -25,6 +25,7 @@ export function helpText(owner = false) {
     '/seed — зерно мира',
     '/difficulty — сложность',
     '/chat on|off — чат мира в этот чат',
+    '/joins on|off — вход и выход игроков в этот чат',
   ];
   if (owner) {
     lines.push(
@@ -176,6 +177,14 @@ export function chatUsage() {
 
 export function chatStatus(enabled) {
   return enabled ? 'Чат мира: включён' : 'Чат мира: выключен';
+}
+
+export function joinsUsage() {
+  return 'Использование: /joins on|off';
+}
+
+export function joinsStatus(enabled) {
+  return enabled ? 'Вход и выход: включён' : 'Вход и выход: выключен';
 }
 
 export function chatRelayLine(name, message) {

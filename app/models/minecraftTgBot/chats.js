@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 
-import minecraftTgBot from '../classes/MongooseSingleton.js';
+import minecraftTgBot from '../../classes/MongooseSignletons/MongooseMinecraftTgBotSingleton.js';
 
-const chatSchema = new mongoose.Schema({
+const chatsSchema = new mongoose.Schema({
   chatId: {
     type: Number,
     required: true,
@@ -16,6 +16,10 @@ const chatSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  joinRelay: {
+    type: Boolean,
+    default: false,
+  },
   updated: {
     type: Date,
     default: Date.now,
@@ -26,4 +30,4 @@ const chatSchema = new mongoose.Schema({
   },
 });
 
-export default minecraftTgBot.model('chats', chatSchema);
+export default minecraftTgBot.model('chats', chatsSchema);

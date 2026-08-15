@@ -1,7 +1,7 @@
-import { rconSend } from './rconClient.js';
-import { notifyChatIds } from '../constants/access.js';
-import { HTML, joinLeaveText } from '../helpers/copy.js';
-import { parsePlayerList } from '../helpers/minecraft.js';
+import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
+import { listJoinRelay } from './chatRelayHelper.js';
+import { HTML, joinLeaveText } from './copyHelper.js';
+import { parsePlayerList } from './minecraftHelper.js';
 import config from '../../config/default.js';
 
 export function startPlayerWatcher(telegram) {
@@ -25,9 +25,10 @@ export function startPlayerWatcher(telegram) {
       if (known) {
         const joined = current.players.filter((name) => !known.has(name));
         const left = [...known].filter((name) => !next.has(name));
-        if (joined.length || left.length) {
+        const chats = listJoinRelay();
+        if ((joined.length || left.length) && chats.length) {
           const text = joinLeaveText(joined, left, current);
-          await Promise.all(notifyChatIds().map((chatId) => (
+          await Promise.all(chats.map((chatId) => (
             telegram.sendMessage(chatId, text, HTML).catch((err) => {
               console.warn(`[notify] chat ${chatId}:`, err.message);
             })
