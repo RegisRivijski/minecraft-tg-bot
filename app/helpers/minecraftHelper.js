@@ -50,38 +50,85 @@ export function parsePlayerList(raw) {
 
 export function parseTimeQuery(raw) {
   const text = stripMcColor(raw);
+  if (!text || /incorrect argument|unknown or incomplete|syntax error|unexpected argument/i.test(text)) {
+    return null;
+  }
+
+  const labeled = text.match(/time is (-?\d+)/i)
+    || text.match(/время[:\s]+(-?\d+)/i)
+    || text.match(/args=\[(-?\d+)/i);
+  if (labeled) {
+    return Number(labeled[1]);
+  }
+
   const match = text.match(/(-?\d+)/);
   return match ? Number(match[1]) : null;
 }
 
 const TICKS_PER_DAY = 24000;
 
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+export function ticksToClock(ticks) {
+  const t = ((ticks % TICKS_PER_DAY) + TICKS_PER_DAY) % TICKS_PER_DAY;
+  const hours = (Math.floor(t / 1000) + 6) % 24;
+  const minutes = Math.floor((t % 1000) * 60 / 1000);
+  return `${pad2(hours)}:${pad2(minutes)}`;
+}
+
 export function describeDaytime(ticks) {
   if (ticks == null || Number.isNaN(ticks)) {
-    return { label: 'Неизвестно', icon: '❔', phase: 'unknown' };
+    return {
+      label: 'Неизвестно', icon: '❔', phase: 'unknown', clock: null, name: null,
+    };
   }
 
   const t = ((ticks % TICKS_PER_DAY) + TICKS_PER_DAY) % TICKS_PER_DAY;
+  const clock = ticksToClock(t);
+  let name;
+  let icon;
+  let phase;
 
   if (t >= 23000 || t < 1000) {
-    return { label: 'Рассвет', icon: '🌅', phase: 'sunrise', ticks: t };
+    name = 'Рассвет';
+    icon = '🌅';
+    phase = 'sunrise';
+  } else if (t < 6000) {
+    name = 'Утро';
+    icon = '🌤️';
+    phase = 'morning';
+  } else if (t < 9000) {
+    name = 'Полдень';
+    icon = '☀️';
+    phase = 'noon';
+  } else if (t < 12000) {
+    name = 'День';
+    icon = '☀️';
+    phase = 'day';
+  } else if (t < 13000) {
+    name = 'Закат';
+    icon = '🌇';
+    phase = 'sunset';
+  } else if (t < 18000) {
+    name = 'Ночь';
+    icon = '🌙';
+    phase = 'night';
+  } else {
+    name = 'Полночь';
+    icon = '🌑';
+    phase = 'midnight';
   }
-  if (t < 6000) {
-    return { label: 'Утро', icon: '🌤️', phase: 'morning', ticks: t };
-  }
-  if (t < 9000) {
-    return { label: 'Полдень', icon: '☀️', phase: 'noon', ticks: t };
-  }
-  if (t < 12000) {
-    return { label: 'День', icon: '☀️', phase: 'day', ticks: t };
-  }
-  if (t < 13000) {
-    return { label: 'Закат', icon: '🌇', phase: 'sunset', ticks: t };
-  }
-  if (t < 18000) {
-    return { label: 'Ночь', icon: '🌙', phase: 'night', ticks: t };
-  }
-  return { label: 'Полночь', icon: '🌑', phase: 'midnight', ticks: t };
+
+  return {
+    label: `${clock} · ${name}`,
+    icon,
+    phase,
+    ticks: t,
+    clock,
+    name,
+  };
 }
 
 export function formatPlayerNames(players) {
@@ -93,11 +140,29 @@ export function formatPlayerNames(players) {
 
 export function parseTps(raw) {
   const text = stripMcColor(raw);
-  const nums = [...text.matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => m[1]);
-  if (nums.length < 3) {
-    return text || null;
+  const nums = [...text.matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+  if (!nums.length) {
+    return null;
   }
-  return nums.slice(-3).join(', ');
+  const values = nums.length >= 3 ? nums.slice(-3) : nums;
+  return values[0];
+}
+
+export function describeTps(tps) {
+  if (tps == null || Number.isNaN(Number(tps))) {
+    return null;
+  }
+  const value = Number(tps);
+  if (value >= 19.5) {
+    return 'Сервер работает плавно';
+  }
+  if (value >= 18) {
+    return `Небольшие лаги (${value.toFixed(1)} TPS)`;
+  }
+  if (value >= 15) {
+    return `Сервер лагает (${value.toFixed(1)} TPS)`;
+  }
+  return `Сильные лаги (${value.toFixed(1)} TPS)`;
 }
 
 const DIFFICULTY_LABELS = {

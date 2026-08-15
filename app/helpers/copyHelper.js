@@ -1,5 +1,5 @@
 import config from '../../config/default.js';
-import { escapeHtml, formatPlayerNames } from './minecraftHelper.js';
+import { describeTps, escapeHtml, formatPlayerNames } from './minecraftHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
 
@@ -79,8 +79,11 @@ export function serverMenu({ list, daytime, worldDay, difficulty, tps }) {
   if (difficulty) {
     lines.push(`Сложность: <b>${escapeHtml(difficulty)}</b>`);
   }
-  if (tps) {
-    lines.push(`TPS: ${escapeHtml(tps)}`);
+  if (tps != null) {
+    const tpsText = describeTps(tps);
+    if (tpsText) {
+      lines.push(tpsText);
+    }
   }
   return lines.join('\n');
 }
@@ -96,8 +99,7 @@ export function listText(list) {
 }
 
 export function timeText(daytime, worldDay) {
-  const ticks = daytime.ticks != null ? ` (${daytime.ticks})` : '';
-  const lines = [`${daytime.icon} ${daytime.label}${ticks}`];
+  const lines = [`${daytime.icon} ${daytime.label}`];
   if (worldDay != null) {
     lines.push(`День ${worldDay}`);
   }

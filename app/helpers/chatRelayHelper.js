@@ -24,6 +24,7 @@ export async function loadChatRelay() {
       joinRelay.add(id);
     }
   }
+  console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}]`);
 }
 
 export function isChatRelayEnabled(chatId) {
@@ -42,10 +43,10 @@ export function listJoinRelay() {
   return [...joinRelay];
 }
 
-async function setRelay(cache, field, chatId, on, title = '') {
+async function persistRelay(chatId, fields, title = '') {
   const id = Number(chatId);
   const $set = {
-    [field]: on,
+    ...fields,
     updated: new Date(),
   };
   if (title) {
@@ -63,19 +64,28 @@ async function setRelay(cache, field, chatId, on, title = '') {
     },
     { upsert: true },
   );
+}
 
+function applyCache(cache, chatId, on) {
+  const id = Number(chatId);
   if (on) {
     cache.add(id);
   } else {
     cache.delete(id);
   }
+  return id;
+}
+
+export async function setChatRelay(chatId, on, title = '') {
+  const id = applyCache(chatRelay, chatId, on);
+  await persistRelay(id, { chatRelay: on }, title);
+  console.info(`[relay] chat ${id} ${on ? 'on' : 'off'}`);
   return on;
 }
 
-export function setChatRelay(chatId, on, title = '') {
-  return setRelay(chatRelay, 'chatRelay', chatId, on, title);
-}
-
-export function setJoinRelay(chatId, on, title = '') {
-  return setRelay(joinRelay, 'joinRelay', chatId, on, title);
+export async function setJoinRelay(chatId, on, title = '') {
+  const id = applyCache(joinRelay, chatId, on);
+  await persistRelay(id, { joinRelay: on }, title);
+  console.info(`[relay] joins ${id} ${on ? 'on' : 'off'}`);
+  return on;
 }

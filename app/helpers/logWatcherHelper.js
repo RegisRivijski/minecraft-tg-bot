@@ -3,8 +3,19 @@ import fs from 'fs/promises';
 import config from '../../config/default.js';
 import { HTML, chatRelayLine } from './copyHelper.js';
 import { parseChatLine, parseJoinLeaveLine } from './minecraftHelper.js';
-import { listChatRelay } from './chatRelayHelper.js';
+import { listChatRelay, listJoinRelay } from './chatRelayHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
+
+function previewLines(lines) {
+  const limit = 20;
+  const shown = lines.slice(0, limit);
+  for (const line of shown) {
+    console.info('[log]', line.slice(0, 300) || '(empty)');
+  }
+  if (lines.length > limit) {
+    console.info(`[log] … and ${lines.length - limit} more lines`);
+  }
+}
 
 export function startLogWatcher(telegram) {
   let offset = null;
@@ -19,6 +30,9 @@ export function startLogWatcher(telegram) {
       return;
     }
 
+    console.info(`[log] ${lines.length} new line(s)`);
+    previewLines(lines);
+
     const chatMessages = [];
     const joined = [];
     const left = [];
@@ -26,6 +40,7 @@ export function startLogWatcher(telegram) {
     for (const line of lines) {
       const joinLeave = parseJoinLeaveLine(line);
       if (joinLeave) {
+        console.info(`[log] parsed ${joinLeave.type}: ${joinLeave.name}`);
         if (joinLeave.type === 'join') {
           joined.push(joinLeave.name);
         } else {
@@ -36,11 +51,22 @@ export function startLogWatcher(telegram) {
 
       const chat = parseChatLine(line);
       if (chat?.message) {
+        console.info(`[log] parsed chat: <${chat.name}> ${chat.message.slice(0, 120)}`);
         chatMessages.push(chatRelayLine(chat.name, chat.message.slice(0, 400)));
       }
     }
 
     const chatChats = listChatRelay();
+    const joinChats = listJoinRelay();
+    console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length}; relays chat=[${chatChats.join(', ') || '—'}] joins=[${joinChats.join(', ') || '—'}]`);
+
+    if (chatMessages.length && !chatChats.length) {
+      console.info('[log] skip chat: /chat is off for all chats');
+    }
+    if ((joined.length || left.length) && !joinChats.length) {
+      console.info('[log] skip join/leave: /joins is off for all chats');
+    }
+
     if (chatMessages.length && chatChats.length) {
       const text = chatMessages.join('\n');
       await Promise.all(chatChats.map((chatId) => (
@@ -48,6 +74,7 @@ export function startLogWatcher(telegram) {
           console.warn(`[chat] chat ${chatId}:`, err.message);
         })
       )));
+      console.info(`[log] sent chat to ${chatChats.length} chat(s)`);
     }
 
     await notifyJoinLeave(telegram, { joined, left });
@@ -61,12 +88,13 @@ export function startLogWatcher(telegram) {
     try {
       const stat = await fs.stat(config.server.logPath);
       if (!watchingLogged) {
-        console.info('[chat] watching', config.server.logPath);
+        console.info(`[log] watching ${config.server.logPath} (${stat.size} bytes)`);
         watchingLogged = true;
       }
       missingLogged = false;
 
       if (offset == null || stat.size < offset) {
+        console.info(`[log] ${offset == null ? 'start at end of file' : 'log rotated'}, offset=${stat.size}`);
         offset = stat.size;
         leftover = '';
         return;
@@ -80,6 +108,7 @@ export function startLogWatcher(telegram) {
         const length = stat.size - offset;
         const buffer = Buffer.alloc(length);
         await handle.read(buffer, 0, length, offset);
+        console.info(`[log] read ${length} bytes at offset ${offset}`);
         offset = stat.size;
         leftover += buffer.toString('utf8');
       } finally {
@@ -94,12 +123,12 @@ export function startLogWatcher(telegram) {
         offset = null;
         leftover = '';
         if (!missingLogged) {
-          console.warn('[chat] waiting for', config.server.logPath);
+          console.warn('[log] waiting for', config.server.logPath);
           missingLogged = true;
           watchingLogged = false;
         }
       } else {
-        console.warn('[chat]', err.message);
+        console.warn('[log]', err.message);
       }
     } finally {
       inFlight = false;

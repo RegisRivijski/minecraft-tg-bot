@@ -20,18 +20,25 @@ function take(type, name) {
 }
 
 export async function notifyJoinLeave(telegram, { joined = [], left = [], current = null } = {}) {
+  if (!joined.length && !left.length) {
+    return;
+  }
+
   const chats = listJoinRelay();
   if (!chats.length) {
+    console.info('[notify] skip join/leave: no chats with /joins on');
     return;
   }
 
   const uniqueJoined = joined.filter((name) => take('join', name));
   const uniqueLeft = left.filter((name) => take('leave', name));
   if (!uniqueJoined.length && !uniqueLeft.length) {
+    console.info('[notify] skip join/leave: duplicate within 20s');
     return;
   }
 
   const text = joinLeaveText(uniqueJoined, uniqueLeft, current);
+  console.info(`[notify] send join=[${uniqueJoined.join(', ') || '—'}] leave=[${uniqueLeft.join(', ') || '—'}] to ${chats.join(', ')}`);
   await Promise.all(chats.map((chatId) => (
     telegram.sendMessage(chatId, text, HTML).catch((err) => {
       console.warn(`[notify] chat ${chatId}:`, err.message);
