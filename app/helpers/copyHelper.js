@@ -27,6 +27,7 @@ export function helpText(owner = false) {
     '/chat on|off — чат мира в этот чат',
     '/joins on|off — вход и выход игроков в этот чат',
     '/events on|off — смерти и достижения в этот чат',
+    '/say &lt;текст&gt; — сказать в чат мира',
   ];
   if (owner) {
     lines.push(
@@ -35,7 +36,6 @@ export function helpText(owner = false) {
       '/time day|night|noon|midnight — установить время',
       '/weather clear|rain|thunder — погода',
       '/difficulty peaceful|easy|normal|hard',
-      '/say &lt;текст&gt; — сказать в чат мира',
       '/whitelist add|remove|list &lt;ник&gt;',
       '/rcon &lt;команда&gt; — консоль сервера',
     );
@@ -145,8 +145,11 @@ export function sayUsage() {
   return 'Использование: /say &lt;сообщение&gt;';
 }
 
-export function sayDone() {
-  return '[Сервер] Сообщение отправлено в чат мира.';
+export function sayDone(name) {
+  if (!name) {
+    return '[Сервер] Сообщение отправлено в чат мира.';
+  }
+  return `[Сервер] ${escapeHtml(name)}: сообщение отправлено в чат мира.`;
 }
 
 export function whitelistUsage() {

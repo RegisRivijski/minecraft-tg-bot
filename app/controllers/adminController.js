@@ -10,17 +10,23 @@ import {
 } from '../helpers/copyHelper.js';
 import { commandArgs, escapeHtml, stripMcColor } from '../helpers/minecraftHelper.js';
 
+function speakerName(ctx) {
+  const from = ctx.from || {};
+  const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
+    || from.username
+    || String(from.id || 'Telegram');
+  return String(name).replace(/[\r\n]+/g, ' ').trim();
+}
+
 export async function say(ctx) {
-  if (!(await requireOwner(ctx))) {
-    return;
-  }
-  const text = commandArgs(ctx);
+  const text = commandArgs(ctx).replace(/[\r\n]+/g, ' ').trim();
   if (!text) {
     await ctx.reply(sayUsage(), HTML);
     return;
   }
-  await rconSend(`say ${text}`);
-  await ctx.reply(sayDone(), HTML);
+  const name = speakerName(ctx);
+  await rconSend(`say ${name}: ${text}`);
+  await ctx.reply(sayDone(name), HTML);
 }
 
 export async function whitelist(ctx) {
