@@ -9,7 +9,7 @@ export const OWNER_IDS = [
 ];
 
 export const CHAT_IDS = [
-  // -1001234567890,
+  -1001730603392,
 ];
 
 export function isOwner(userId) {
