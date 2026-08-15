@@ -199,11 +199,13 @@ export function joinLeaveText(joined, left, current) {
   for (const name of left) {
     lines.push(`${escapeHtml(name)} вышел из игры`);
   }
-  lines.push('');
-  if (!current.players.length) {
-    lines.push('На сервере нет игроков.');
-  } else {
-    lines.push(`Игроки (${current.online}/${current.max}): ${formatPlayerNames(current.players)}`);
+  if (current) {
+    lines.push('');
+    if (!current.players.length) {
+      lines.push('На сервере нет игроков.');
+    } else {
+      lines.push(`Игроки (${current.online}/${current.max}): ${formatPlayerNames(current.players)}`);
+    }
   }
   return lines.join('\n');
 }

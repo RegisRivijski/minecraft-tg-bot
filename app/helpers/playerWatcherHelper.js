@@ -1,13 +1,13 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
-import { listJoinRelay } from './chatRelayHelper.js';
-import { HTML, joinLeaveText } from './copyHelper.js';
 import { parsePlayerList } from './minecraftHelper.js';
+import { notifyJoinLeave } from './joinNotifyHelper.js';
 import config from '../../config/default.js';
 
 export function startPlayerWatcher(telegram) {
   let known = null;
   let timer = null;
   let inFlight = false;
+  let lastWarnAt = 0;
 
   const tick = async () => {
     if (inFlight) {
@@ -17,7 +17,10 @@ export function startPlayerWatcher(telegram) {
     try {
       const current = parsePlayerList(await rconSend('list'));
       if (!current.ok) {
-        console.warn('[watcher] unexpected list response:', current.raw);
+        if (Date.now() - lastWarnAt > 60000) {
+          console.warn('[watcher] unexpected list response:', current.raw);
+          lastWarnAt = Date.now();
+        }
         return;
       }
       const next = new Set(current.players);
@@ -25,14 +28,8 @@ export function startPlayerWatcher(telegram) {
       if (known) {
         const joined = current.players.filter((name) => !known.has(name));
         const left = [...known].filter((name) => !next.has(name));
-        const chats = listJoinRelay();
-        if ((joined.length || left.length) && chats.length) {
-          const text = joinLeaveText(joined, left, current);
-          await Promise.all(chats.map((chatId) => (
-            telegram.sendMessage(chatId, text, HTML).catch((err) => {
-              console.warn(`[notify] chat ${chatId}:`, err.message);
-            })
-          )));
+        if (joined.length || left.length) {
+          await notifyJoinLeave(telegram, { joined, left, current });
         }
       }
 

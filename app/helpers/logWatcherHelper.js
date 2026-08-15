@@ -2,8 +2,9 @@ import fs from 'fs/promises';
 
 import config from '../../config/default.js';
 import { HTML, chatRelayLine } from './copyHelper.js';
-import { parseChatLine } from './minecraftHelper.js';
+import { parseChatLine, parseJoinLeaveLine } from './minecraftHelper.js';
 import { listChatRelay } from './chatRelayHelper.js';
+import { notifyJoinLeave } from './joinNotifyHelper.js';
 
 export function startLogWatcher(telegram) {
   let offset = null;
@@ -14,29 +15,42 @@ export function startLogWatcher(telegram) {
   let watchingLogged = false;
 
   const sendLines = async (lines) => {
-    const chats = listChatRelay();
-    if (!chats.length || !lines.length) {
+    if (!lines.length) {
       return;
     }
 
-    const messages = [];
+    const chatMessages = [];
+    const joined = [];
+    const left = [];
+
     for (const line of lines) {
-      const chat = parseChatLine(line);
-      if (!chat?.message) {
+      const joinLeave = parseJoinLeaveLine(line);
+      if (joinLeave) {
+        if (joinLeave.type === 'join') {
+          joined.push(joinLeave.name);
+        } else {
+          left.push(joinLeave.name);
+        }
         continue;
       }
-      messages.push(chatRelayLine(chat.name, chat.message.slice(0, 400)));
-    }
-    if (!messages.length) {
-      return;
+
+      const chat = parseChatLine(line);
+      if (chat?.message) {
+        chatMessages.push(chatRelayLine(chat.name, chat.message.slice(0, 400)));
+      }
     }
 
-    const text = messages.join('\n');
-    await Promise.all(chats.map((chatId) => (
-      telegram.sendMessage(chatId, text, HTML).catch((err) => {
-        console.warn(`[chat] chat ${chatId}:`, err.message);
-      })
-    )));
+    const chatChats = listChatRelay();
+    if (chatMessages.length && chatChats.length) {
+      const text = chatMessages.join('\n');
+      await Promise.all(chatChats.map((chatId) => (
+        telegram.sendMessage(chatId, text, HTML).catch((err) => {
+          console.warn(`[chat] chat ${chatId}:`, err.message);
+        })
+      )));
+    }
+
+    await notifyJoinLeave(telegram, { joined, left });
   };
 
   const tick = async () => {

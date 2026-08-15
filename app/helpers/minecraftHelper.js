@@ -13,28 +13,38 @@ export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }
 
+function splitPlayerNames(namesRaw) {
+  return String(namesRaw || '')
+    .split(',')
+    .map((name) => name.replace(/\s*\([^)]*\)\s*$/, '').trim())
+    .filter(Boolean);
+}
+
 export function parsePlayerList(raw) {
-  const text = stripMcColor(raw);
-  const match = text.match(
-    /There are (\d+) (?:of a max(?:imum)? of |\/)(\d+) players online:\s*(.*)$/is,
-  );
-  if (!match) {
+  const text = stripMcColor(raw).replace(/\s+/g, ' ').trim();
+  const patterns = [
+    /There are (\d+) of a max(?:imum)?(?: of)? (\d+) players online:?\s*(.*)$/i,
+    /There are (\d+)\/(\d+) players online:?\s*(.*)$/i,
+    /Сейчас на сервере (\d+) из (\d+) игроков:?\s*(.*)$/i,
+    /(\d+)\s*(?:of a max(?:imum)?(?: of)?|из|\/)\s*(\d+)\s*(?:players online|игроков)\s*:?\s*(.*)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
     return {
-      ok: false, online: 0, max: 0, players: [], raw: text,
+      ok: true,
+      online: Number(match[1]),
+      max: Number(match[2]),
+      players: splitPlayerNames(match[3]),
+      raw: text,
     };
   }
 
-  const players = match[3]
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean);
-
   return {
-    ok: true,
-    online: Number(match[1]),
-    max: Number(match[2]),
-    players,
-    raw: text,
+    ok: false, online: 0, max: 0, players: [], raw: text,
   };
 }
 
@@ -139,15 +149,43 @@ export function parseDifficulty(raw) {
 
 const CHAT_LINE = /^(?:\[Not Secure\] )?<(?<name>[^>]+)> (?<message>.+)$/;
 const SERVER_SAY = /^\[Server\] (?<message>.+)$/;
+const JOIN_LINE = /^(?<name>.+?) (?:joined the game|присоединил(?:ся|ась) к игре)$/;
+const LEAVE_LINE = /^(?<name>.+?) (?:left the game|выш(?:ел|ла) из игры)$/;
 
-export function parseChatLine(raw) {
+export function stripLogPayload(raw) {
   const text = stripMcColor(raw).trim();
   if (!text) {
+    return '';
+  }
+  const prefixed = text.match(/^\[.+?\] \[.+?\]: (.*)$/)
+    || text.match(/^\[.+?\]: (.*)$/);
+  return (prefixed ? prefixed[1] : text).trim();
+}
+
+export function parseJoinLeaveLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload) {
     return null;
   }
 
-  const prefixed = text.match(/^\[.+?\] \[.+?\]: (.*)$/);
-  const payload = prefixed ? prefixed[1] : text;
+  const joined = payload.match(JOIN_LINE);
+  if (joined?.groups?.name) {
+    return { type: 'join', name: joined.groups.name.trim() };
+  }
+
+  const left = payload.match(LEAVE_LINE);
+  if (left?.groups?.name) {
+    return { type: 'leave', name: left.groups.name.trim() };
+  }
+
+  return null;
+}
+
+export function parseChatLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload) {
+    return null;
+  }
 
   const chat = payload.match(CHAT_LINE);
   if (chat?.groups?.name && chat.groups.message) {
