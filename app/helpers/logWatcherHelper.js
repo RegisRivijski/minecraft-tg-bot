@@ -21,8 +21,7 @@ function previewLines(lines) {
 
 function classifyLogLines(lines) {
   const chatMessages = [];
-  const joined = [];
-  const left = [];
+  const joinLeaveEvents = [];
   const deaths = [];
   const advancements = [];
 
@@ -30,11 +29,7 @@ function classifyLogLines(lines) {
     const joinLeave = parseJoinLeaveLine(line);
     if (joinLeave) {
       console.info(`[log] parsed ${joinLeave.type}: ${joinLeave.name}`);
-      if (joinLeave.type === 'join') {
-        joined.push(joinLeave.name);
-      } else {
-        left.push(joinLeave.name);
-      }
+      joinLeaveEvents.push(joinLeave);
       continue;
     }
 
@@ -58,7 +53,7 @@ function classifyLogLines(lines) {
   }
 
   return {
-    chatMessages, joined, left, deaths, advancements,
+    chatMessages, joinLeaveEvents, deaths, advancements,
   };
 }
 
@@ -76,20 +71,22 @@ async function sendToChats(telegram, chatIds, text, label) {
 
 async function forwardLogEvents(telegram, events) {
   const {
-    chatMessages, joined, left, deaths, advancements,
+    chatMessages, joinLeaveEvents, deaths, advancements,
   } = events;
 
   const chatIds = listChatRelay();
   const joinChatIds = listJoinRelay();
   const deathChatIds = listDeathRelay();
   const advancementChatIds = listAdvancementRelay();
+  const joinedCount = joinLeaveEvents.filter((event) => event.type === 'join').length;
+  const leftCount = joinLeaveEvents.filter((event) => event.type === 'leave').length;
 
-  console.info(`[log] matched chat=${chatMessages.length} join=${joined.length} leave=${left.length} deaths=${deaths.length} advancements=${advancements.length}; relays chat=[${chatIds.join(', ') || '—'}] joins=[${joinChatIds.join(', ') || '—'}] deaths=[${deathChatIds.join(', ') || '—'}] advancements=[${advancementChatIds.join(', ') || '—'}]`);
+  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length}; relays chat=[${chatIds.join(', ') || '—'}] joins=[${joinChatIds.join(', ') || '—'}] deaths=[${deathChatIds.join(', ') || '—'}] advancements=[${advancementChatIds.join(', ') || '—'}]`);
 
   if (chatMessages.length && !chatIds.length) {
     console.info('[log] skip chat: /chat is off for all chats');
   }
-  if ((joined.length || left.length) && !joinChatIds.length) {
+  if (joinLeaveEvents.length && !joinChatIds.length) {
     console.info('[log] skip join/leave: /joins is off for all chats');
   }
   if (deaths.length && !deathChatIds.length) {
@@ -102,7 +99,7 @@ async function forwardLogEvents(telegram, events) {
   await sendToChats(telegram, chatIds, chatMessages.join('\n'), 'chat');
   await sendToChats(telegram, deathChatIds, deaths.join('\n'), 'deaths');
   await sendToChats(telegram, advancementChatIds, advancements.join('\n'), 'advancements');
-  await notifyJoinLeave(telegram, { joined, left });
+  await notifyJoinLeave(telegram, { events: joinLeaveEvents });
 }
 
 export function startLogWatcher(telegram) {

@@ -23,8 +23,19 @@ function isUnseenEvent(type, name) {
   return true;
 }
 
-export async function notifyJoinLeave(telegram, { joined = [], left = [], current = null } = {}) {
-  if (!joined.length && !left.length) {
+function toEvents({ events, joined = [], left = [] } = {}) {
+  if (events?.length) {
+    return events;
+  }
+  return [
+    ...left.map((name) => ({ type: 'leave', name })),
+    ...joined.map((name) => ({ type: 'join', name })),
+  ];
+}
+
+export async function notifyJoinLeave(telegram, payload = {}) {
+  const ordered = toEvents(payload);
+  if (!ordered.length) {
     return;
   }
 
@@ -34,15 +45,15 @@ export async function notifyJoinLeave(telegram, { joined = [], left = [], curren
     return;
   }
 
-  const uniqueJoined = joined.filter((name) => isUnseenEvent('join', name));
-  const uniqueLeft = left.filter((name) => isUnseenEvent('leave', name));
-  if (!uniqueJoined.length && !uniqueLeft.length) {
+  const unique = ordered.filter((event) => isUnseenEvent(event.type, event.name));
+  if (!unique.length) {
     console.info('[notify] skip join/leave: duplicate within 20s');
     return;
   }
 
-  const text = joinLeaveText(uniqueJoined, uniqueLeft, current);
-  console.info(`[notify] send join=[${uniqueJoined.join(', ') || '—'}] leave=[${uniqueLeft.join(', ') || '—'}] to ${chatIds.join(', ')}`);
+  const text = joinLeaveText(unique, payload.current ?? null);
+  const summary = unique.map((event) => `${event.type}:${event.name}`).join(', ');
+  console.info(`[notify] send [${summary}] to ${chatIds.join(', ')}`);
   await Promise.all(chatIds.map((chatId) => (
     telegram.sendMessage(chatId, text, HTML).catch((err) => {
       console.warn(`[notify] chat ${chatId}:`, err.message);

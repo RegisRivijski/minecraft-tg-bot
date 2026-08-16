@@ -233,13 +233,14 @@ export function chatRelayLine(name, message) {
   return `&lt;${formatPlayerName(name)}&gt; ${escapeHtml(message)}`;
 }
 
-export function joinLeaveText(joined, left, current) {
+export function joinLeaveText(events, current) {
   const lines = [];
-  for (const name of joined) {
-    lines.push(`${formatPlayerName(name)} присоединился к игре`);
-  }
-  for (const name of left) {
-    lines.push(`${formatPlayerName(name)} вышел из игры`);
+  for (const event of events) {
+    if (event.type === 'join') {
+      lines.push(`${formatPlayerName(event.name)} присоединился к игре`);
+    } else {
+      lines.push(`${formatPlayerName(event.name)} вышел из игры`);
+    }
   }
   if (current) {
     lines.push('');
