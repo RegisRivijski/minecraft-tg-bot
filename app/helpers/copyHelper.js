@@ -25,7 +25,6 @@ export function startText() {
 export function helpText(owner = false) {
   const lines = [
     '--- <b>Помощь</b> ---',
-    '',
     '/server — статус мира',
     '/seed — зерно мира',
     '/notify — рассылки в этот чат',
