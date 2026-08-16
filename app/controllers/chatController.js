@@ -8,109 +8,103 @@ import {
   setDeathRelay,
   setJoinRelay,
 } from '../helpers/chatRelayHelper.js';
+import { isOwnerCtx } from '../helpers/accessHelper.js';
 import {
-  HTML,
-  advancementsStatus,
-  advancementsUsage,
-  chatStatus,
-  chatUsage,
-  deathsStatus,
-  deathsUsage,
-  eventsSplitHint,
-  joinsStatus,
-  joinsUsage,
+  htmlMarkup,
+  notifyNotAdmin,
+  notifyPanelText,
+  notifyToggleLabel,
 } from '../helpers/copyHelper.js';
-import { commandArgs } from '../helpers/minecraftHelper.js';
 
-function parseToggle(arg) {
-  if (['on', 'вкл', 'enable'].includes(arg)) {
-    return true;
-  }
-  if (['off', 'выкл', 'disable'].includes(arg)) {
-    return false;
-  }
-  return null;
-}
-
-async function handleToggle(ctx, {
-  isEnabled, setEnabled, status, usage,
-}) {
-  const arg = commandArgs(ctx).toLowerCase();
-  if (!arg) {
-    await ctx.reply(status(isEnabled(ctx.chat.id)), HTML);
-    return;
-  }
-
-  const enabled = parseToggle(arg);
-  if (enabled == null) {
-    await ctx.reply(usage(), HTML);
-    return;
-  }
-
-  await setEnabled(ctx.chat.id, enabled, ctx.chat.title);
-  await ctx.reply(status(enabled), HTML);
-}
-
-export function chat(ctx) {
-  return handleToggle(ctx, {
+const TOGGLES = {
+  chat: {
     isEnabled: isChatRelayEnabled,
     setEnabled: setChatRelay,
-    status: chatStatus,
-    usage: chatUsage,
-  });
-}
-
-export function joins(ctx) {
-  return handleToggle(ctx, {
+    hint: 'Чат мира',
+  },
+  joins: {
     isEnabled: isJoinRelayEnabled,
     setEnabled: setJoinRelay,
-    status: joinsStatus,
-    usage: joinsUsage,
-  });
-}
-
-export function deaths(ctx) {
-  return handleToggle(ctx, {
+    hint: 'Вход и выход',
+  },
+  deaths: {
     isEnabled: isDeathRelayEnabled,
     setEnabled: setDeathRelay,
-    status: deathsStatus,
-    usage: deathsUsage,
-  });
-}
-
-export function advancements(ctx) {
-  return handleToggle(ctx, {
+    hint: 'Смерти',
+  },
+  adv: {
     isEnabled: isAdvancementRelayEnabled,
     setEnabled: setAdvancementRelay,
-    status: advancementsStatus,
-    usage: advancementsUsage,
-  });
+    hint: 'Достижения',
+  },
+};
+
+function chatTitle(ctx) {
+  if (ctx.chat?.title) {
+    return ctx.chat.title;
+  }
+  const from = ctx.from || {};
+  return [from.first_name, from.last_name].filter(Boolean).join(' ');
 }
 
-export async function events(ctx) {
-  const arg = commandArgs(ctx).toLowerCase();
+function notifyKeyboard(chatId) {
+  return Object.keys(TOGGLES).map((key) => ([
+    {
+      text: notifyToggleLabel(key, TOGGLES[key].isEnabled(chatId)),
+      callback_data: `n:${key}`,
+    },
+  ]));
+}
+
+async function canManageNotify(ctx) {
+  if (isOwnerCtx(ctx) || ctx.chat?.type === 'private') {
+    return true;
+  }
+  try {
+    const member = await ctx.getChatMember(ctx.from.id);
+    return ['creator', 'administrator'].includes(member.status);
+  } catch {
+    return false;
+  }
+}
+
+async function showNotifyPanel(ctx) {
+  await ctx.reply(
+    notifyPanelText(ctx.chat),
+    htmlMarkup(notifyKeyboard(ctx.chat.id)),
+  );
+}
+
+export function notify(ctx) {
+  return showNotifyPanel(ctx);
+}
+
+export async function onNotifyToggle(ctx) {
+  const key = ctx.match?.[1];
+  const toggle = TOGGLES[key];
+  if (!toggle) {
+    await ctx.answerCbQuery();
+    return;
+  }
+
+  if (!(await canManageNotify(ctx))) {
+    await ctx.answerCbQuery(notifyNotAdmin());
+    return;
+  }
+
   const chatId = ctx.chat.id;
+  const enabled = !toggle.isEnabled(chatId);
+  await toggle.setEnabled(chatId, enabled, chatTitle(ctx));
 
-  if (!arg) {
-    await ctx.reply([
-      deathsStatus(isDeathRelayEnabled(chatId)),
-      advancementsStatus(isAdvancementRelayEnabled(chatId)),
-      '',
-      eventsSplitHint(),
-    ].join('\n'), HTML);
-    return;
+  try {
+    await ctx.editMessageText(
+      notifyPanelText(ctx.chat),
+      htmlMarkup(notifyKeyboard(chatId)),
+    );
+  } catch (err) {
+    if (!/message is not modified/i.test(err.message || '')) {
+      throw err;
+    }
   }
-
-  const enabled = parseToggle(arg);
-  if (enabled == null) {
-    await ctx.reply(eventsSplitHint(), HTML);
-    return;
-  }
-
-  await setDeathRelay(chatId, enabled, ctx.chat.title);
-  await setAdvancementRelay(chatId, enabled, ctx.chat.title);
-  await ctx.reply([
-    deathsStatus(enabled),
-    advancementsStatus(enabled),
-  ].join('\n'), HTML);
+  await ctx.answerCbQuery(`${toggle.hint}: ${enabled ? 'вкл' : 'выкл'}`);
 }

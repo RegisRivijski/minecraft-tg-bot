@@ -3,6 +3,13 @@ import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames } from './
 
 export const HTML = { parse_mode: 'HTML' };
 
+export function htmlMarkup(inlineKeyboard) {
+  return {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: inlineKeyboard },
+  };
+}
+
 export function startText() {
   return [
     '<i>Загрузка мира...</i>',
@@ -19,22 +26,16 @@ export function helpText(owner = false) {
   const lines = [
     '--- <b>Помощь</b> ---',
     '',
-    '/server — меню мира',
-    '/list — игроки на сервере',
-    '/time — время суток',
-    '/weather — погода',
+    '/server — статус мира',
     '/seed — зерно мира',
-    '/difficulty — сложность',
-    '/chat on|off — чат мира в этот чат',
-    '/joins on|off — вход и выход игроков в этот чат',
-    '/deaths on|off — смерти игроков в этот чат',
-    '/advancements on|off — достижения в этот чат',
+    '/notify — рассылки в этот чат',
     '/say &lt;текст&gt; — сказать в чат мира',
   ];
   if (owner) {
     lines.push(
       '',
       '--- <b>Оператор</b> ---',
+      '/viewers — кто смотрит сервер',
       '/time day|night|noon|midnight — установить время',
       '/weather clear|rain|thunder — погода',
       '/difficulty peaceful|easy|normal|hard',
@@ -49,15 +50,156 @@ export function noPermission() {
   return 'У вас нет разрешения на использование этой команды.';
 }
 
-export function deniedText({ userId, chatId, isPrivate }) {
-  const lines = ['У вас нет разрешения на использование этой команды.'];
-  if (isPrivate && userId) {
-    lines.push('', `id игрока: <code>${userId}</code>`);
-  } else if (chatId) {
-    lines.push('', `id мира: <code>${chatId}</code>`);
+export function accessGateText(status) {
+  if (status === 'pending') {
+    return 'Заявка на просмотр сервера уже отправлена. Ждём решения владельца.';
   }
-  lines.push('Пропиши id в <code>app/constants/access.js</code>.');
+  return 'Заявка на просмотр сервера отправлена владельцу. Когда её одобрят, можно будет смотреть статус мира и включать рассылки.';
+}
+
+export function accessRequestOwnerText({ kind, label, chatId, from }) {
+  const type = kind === 'group' ? 'группа' : 'личные сообщения';
+  const lines = [
+    '<b>Заявка на просмотр сервера</b>',
+    '',
+    `Тип: ${type}`,
+    `Кто: ${escapeHtml(label)}`,
+  ];
+  if (kind === 'group' && from) {
+    const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
+      || from.username
+      || from.id;
+    lines.push(`От: ${escapeHtml(String(name))}`);
+  }
+  lines.push(`id: <code>${chatId}</code>`);
   return lines.join('\n');
+}
+
+export function accessRequestKeyboard(chatId) {
+  return [
+    [
+      { text: 'Одобрить', callback_data: `r:ok:${chatId}` },
+      { text: 'Отклонить', callback_data: `r:no:${chatId}` },
+    ],
+  ];
+}
+
+export function accessApprovedViewerText() {
+  return 'Доступ к просмотру сервера одобрен. /help — список команд, /notify — рассылки.';
+}
+
+export function accessDeniedViewerText() {
+  return 'Владелец отклонил доступ к просмотру сервера.';
+}
+
+export function accessRevokedViewerText() {
+  return 'Доступ к просмотру сервера отключён.';
+}
+
+export function accessDecisionDone({ approved, label }) {
+  return approved
+    ? `Одобрено: ${escapeHtml(label)}`
+    : `Отклонено: ${escapeHtml(label)}`;
+}
+
+export function groupAccessGranted() {
+  return 'Этот чат может смотреть сервер. /notify — рассылки в этот чат.';
+}
+
+export function notifyPanelText(chat) {
+  const where = chat?.type === 'private'
+    ? 'личные сообщения'
+    : (chat?.title ? `чат «${escapeHtml(chat.title)}»` : 'этот чат');
+  return [
+    '<b>Рассылки</b>',
+    `Куда: ${where}`,
+    '',
+    'Кнопки включают и выключают уведомления <i>только здесь</i>. Другие чаты не затрагиваются.',
+  ].join('\n');
+}
+
+export function notifyToggleLabel(key, enabled) {
+  const names = {
+    chat: 'Чат мира',
+    joins: 'Вход и выход',
+    deaths: 'Смерти',
+    adv: 'Достижения',
+  };
+  return `${enabled ? '✅' : '❌'} ${names[key]}`;
+}
+
+export function notifyNotAdmin() {
+  return 'Рассылки этого чата могут менять только админы.';
+}
+
+function viewerKindLabel(kind) {
+  return kind === 'group' ? 'группа' : 'личка';
+}
+
+function viewerBullet(entry) {
+  return `• ${escapeHtml(entry.label)} · ${viewerKindLabel(entry.kind)} · <code>${entry.chatId}</code>`;
+}
+
+export function viewersEmpty() {
+  return [
+    '<b>Кто смотрит сервер</b>',
+    '',
+    'Пока никто. Заявки появятся, когда кто-то напишет боту /start или добавит его в чат.',
+  ].join('\n');
+}
+
+export function viewersListText(entries) {
+  if (!entries.length) {
+    return viewersEmpty();
+  }
+
+  const pending = entries.filter((entry) => entry.status === 'pending');
+  const approved = entries.filter((entry) => entry.status === 'approved');
+  const revoked = entries.filter((entry) => entry.status === 'revoked');
+  const lines = ['<b>Кто смотрит сервер</b>'];
+
+  if (pending.length) {
+    lines.push('', '<i>Ожидают</i>');
+    lines.push(...pending.map(viewerBullet));
+  }
+  if (approved.length) {
+    lines.push('', '<i>Одобрены</i>');
+    lines.push(...approved.map(viewerBullet));
+  }
+  if (revoked.length) {
+    lines.push('', '<i>Отключены</i>');
+    lines.push(...revoked.map(viewerBullet));
+  }
+
+  lines.push('', 'Кнопки ниже — одобрить, отклонить, отключить или вернуть доступ.');
+  return lines.join('\n');
+}
+
+function shortButtonLabel(label) {
+  const text = String(label || '').trim() || 'без имени';
+  return text.length > 28 ? `${text.slice(0, 27)}…` : text;
+}
+
+export function viewersKeyboard(entries) {
+  const rows = [];
+  for (const entry of entries) {
+    const name = shortButtonLabel(entry.label);
+    if (entry.status === 'pending') {
+      rows.push([
+        { text: `✓ ${name}`, callback_data: `v:ok:${entry.chatId}` },
+        { text: '✗', callback_data: `v:no:${entry.chatId}` },
+      ]);
+    } else if (entry.status === 'approved') {
+      rows.push([
+        { text: `Отключить · ${name}`, callback_data: `v:x:${entry.chatId}` },
+      ]);
+    } else {
+      rows.push([
+        { text: `Включить · ${name}`, callback_data: `v:on:${entry.chatId}` },
+      ]);
+    }
+  }
+  return rows;
 }
 
 export function serverMenu({ list, daytime, weather, difficulty, tps }) {
@@ -182,42 +324,6 @@ export function connectionLost() {
 
 export function unknownError() {
   return 'Произошла неизвестная ошибка.';
-}
-
-export function chatUsage() {
-  return 'Использование: /chat on|off';
-}
-
-export function chatStatus(enabled) {
-  return enabled ? 'Чат мира: включён' : 'Чат мира: выключен';
-}
-
-export function joinsUsage() {
-  return 'Использование: /joins on|off';
-}
-
-export function joinsStatus(enabled) {
-  return enabled ? 'Вход и выход: включён' : 'Вход и выход: выключен';
-}
-
-export function deathsUsage() {
-  return 'Использование: /deaths on|off';
-}
-
-export function deathsStatus(enabled) {
-  return enabled ? 'Смерти: включены' : 'Смерти: выключены';
-}
-
-export function advancementsUsage() {
-  return 'Использование: /advancements on|off';
-}
-
-export function advancementsStatus(enabled) {
-  return enabled ? 'Достижения: включены' : 'Достижения: выключены';
-}
-
-export function eventsSplitHint() {
-  return 'Используйте /deaths и /advancements';
 }
 
 export function worldEventLine(event) {

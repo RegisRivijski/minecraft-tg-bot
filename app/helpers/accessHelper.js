@@ -1,32 +1,88 @@
-import { CHAT_IDS, OWNER_IDS, VIEWER_IDS } from '../constants/access.js';
+import { OWNER_IDS } from '../constants/access.js';
 import { HTML, noPermission } from './copyHelper.js';
+
+const approvedIds = new Set();
+const pendingIds = new Set();
+const revokedIds = new Set();
 
 export function isOwner(userId) {
   return OWNER_IDS.includes(Number(userId));
 }
 
-export function isViewer(userId) {
-  return VIEWER_IDS.includes(Number(userId));
+export function isOwnerCtx(ctx) {
+  return isOwner(ctx.from?.id);
 }
 
-export function isAllowedChat(chatId) {
-  return CHAT_IDS.includes(Number(chatId));
+export function isApproved(id) {
+  return approvedIds.has(Number(id));
+}
+
+export function isPending(id) {
+  return pendingIds.has(Number(id));
+}
+
+export function isRevoked(id) {
+  return revokedIds.has(Number(id));
+}
+
+export function canReceiveRelay(chatId) {
+  const id = Number(chatId);
+  return isOwner(id) || isApproved(id);
 }
 
 export function canUseBot(ctx) {
-  if (isAllowedChat(ctx.chat?.id)) {
+  if (isOwner(ctx.from?.id)) {
     return true;
   }
-  // Groups outside CHAT_IDS are ignored. Private chats: owners and viewers only.
-  if (ctx.chat?.type !== 'private') {
+  const chatId = ctx.chat?.id;
+  if (chatId == null) {
     return false;
   }
-  const userId = ctx.from?.id;
-  return isOwner(userId) || isViewer(userId);
+  return isApproved(chatId);
 }
 
-export function isOwnerCtx(ctx) {
-  return isOwner(ctx.from?.id);
+export function hydrateAccess({ approved = [], pending = [], revoked = [] }) {
+  approvedIds.clear();
+  pendingIds.clear();
+  revokedIds.clear();
+  for (const id of approved) {
+    approvedIds.add(Number(id));
+  }
+  for (const id of pending) {
+    pendingIds.add(Number(id));
+  }
+  for (const id of revoked) {
+    revokedIds.add(Number(id));
+  }
+}
+
+export function markApproved(id) {
+  const chatId = Number(id);
+  approvedIds.add(chatId);
+  pendingIds.delete(chatId);
+  revokedIds.delete(chatId);
+}
+
+export function markPending(id) {
+  const chatId = Number(id);
+  pendingIds.add(chatId);
+  approvedIds.delete(chatId);
+  revokedIds.delete(chatId);
+}
+
+export function markRevoked(id) {
+  const chatId = Number(id);
+  revokedIds.add(chatId);
+  approvedIds.delete(chatId);
+  pendingIds.delete(chatId);
+}
+
+export function accessSnapshot() {
+  return {
+    approved: [...approvedIds],
+    pending: [...pendingIds],
+    revoked: [...revokedIds],
+  };
 }
 
 export async function requireOwner(ctx) {

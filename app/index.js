@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 
 import config from '../config/default.js';
-import { CHAT_IDS, OWNER_IDS, VIEWER_IDS } from './constants/access.js';
+import { OWNER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
 import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
@@ -9,6 +9,8 @@ import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
 import minecraftTgBot from './classes/MongooseSignletons/MongooseMinecraftTgBotSingleton.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
 import { loadChatRelay } from './helpers/chatRelayHelper.js';
+import { accessSnapshot } from './helpers/accessHelper.js';
+import { loadAccess } from './helpers/viewerHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
 
@@ -30,8 +32,7 @@ function printStartupTable(apiRoot) {
     Rcon: `${config.rcon.host}:${config.rcon.port}`,
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
-    Viewers: VIEWER_IDS.join(', ') || '—',
-    Chats: CHAT_IDS.join(', ') || '—',
+    Viewers: accessSnapshot().approved.join(', ') || '—',
     Log: config.server.logPath,
     Mongo: config.db.mongodb.options.dbName,
     LocalApi: Boolean(apiRoot),
@@ -59,11 +60,12 @@ export default async function main() {
   if (!config.db.mongodb.url) {
     throw new Error('MONGODB_1_HOSTNAME is required');
   }
-  if (!OWNER_IDS.length && !VIEWER_IDS.length && !CHAT_IDS.length) {
-    console.warn('[acl] OWNER_IDS, VIEWER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
+  if (!OWNER_IDS.length) {
+    console.warn('[acl] OWNER_IDS is empty — fill app/constants/access.js');
   }
 
   await minecraftTgBot.asPromise();
+  await loadAccess();
   await loadChatRelay();
 
   const apiRoot = buildTelegramApiRoot();
@@ -79,7 +81,9 @@ export default async function main() {
   const stopPlayerWatcher = startPlayerWatcher(bot.telegram);
   const stopLogWatcher = startLogWatcher(bot.telegram);
 
-  await bot.launch();
+  await bot.launch({
+    allowedUpdates: ['message', 'callback_query', 'my_chat_member'],
+  });
   await registerBotCommands(bot).catch((error) => {
     console.warn('[telegram] setMyCommands failed:', error.message);
   });

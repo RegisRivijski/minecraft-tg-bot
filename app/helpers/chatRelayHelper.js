@@ -1,4 +1,5 @@
 import Chat from '../models/minecraftTgBot/chats.js';
+import { canReceiveRelay } from './accessHelper.js';
 
 let chatRelay = new Set();
 let joinRelay = new Set();
@@ -77,19 +78,19 @@ export function isAdvancementRelayEnabled(chatId) {
 }
 
 export function listChatRelay() {
-  return [...chatRelay];
+  return [...chatRelay].filter(canReceiveRelay);
 }
 
 export function listJoinRelay() {
-  return [...joinRelay];
+  return [...joinRelay].filter(canReceiveRelay);
 }
 
 export function listDeathRelay() {
-  return [...deathRelay];
+  return [...deathRelay].filter(canReceiveRelay);
 }
 
 export function listAdvancementRelay() {
-  return [...advancementRelay];
+  return [...advancementRelay].filter(canReceiveRelay);
 }
 
 async function saveRelayToDb(chatId, fields, title = '') {
