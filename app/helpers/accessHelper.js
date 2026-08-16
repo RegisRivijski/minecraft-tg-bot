@@ -1,8 +1,12 @@
-import { CHAT_IDS, OWNER_IDS } from '../constants/access.js';
+import { CHAT_IDS, OWNER_IDS, VIEWER_IDS } from '../constants/access.js';
 import { HTML, noPermission } from './copyHelper.js';
 
 export function isOwner(userId) {
   return OWNER_IDS.includes(Number(userId));
+}
+
+export function isViewer(userId) {
+  return VIEWER_IDS.includes(Number(userId));
 }
 
 export function isAllowedChat(chatId) {
@@ -13,7 +17,11 @@ export function canUseBot(ctx) {
   if (isAllowedChat(ctx.chat?.id)) {
     return true;
   }
-  return ctx.chat?.type === 'private' && isOwner(ctx.from?.id);
+  if (ctx.chat?.type !== 'private') {
+    return false;
+  }
+  const userId = ctx.from?.id;
+  return isOwner(userId) || isViewer(userId);
 }
 
 export function isOwnerCtx(ctx) {

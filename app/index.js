@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 
 import config from '../config/default.js';
-import { CHAT_IDS, OWNER_IDS } from './constants/access.js';
+import { CHAT_IDS, OWNER_IDS, VIEWER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
 import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
@@ -23,8 +23,8 @@ export default async function main() {
   if (!config.bot.apiToken) {
     throw new Error('MINECRAFT_TG_BOT_API_TOKEN is required');
   }
-  if (!OWNER_IDS.length && !CHAT_IDS.length) {
-    console.warn('[acl] OWNER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
+  if (!OWNER_IDS.length && !VIEWER_IDS.length && !CHAT_IDS.length) {
+    console.warn('[acl] OWNER_IDS, VIEWER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
   }
 
   await minecraftTgBot.asPromise();
@@ -55,6 +55,7 @@ export default async function main() {
     Rcon: `${config.rcon.host}:${config.rcon.port}`,
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
+    Viewers: VIEWER_IDS.join(', ') || '—',
     Chats: CHAT_IDS.join(', ') || '—',
     Log: config.server.logPath,
     Mongo: config.db.mongodb.options.dbName,
