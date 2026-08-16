@@ -22,6 +22,7 @@ export function helpText(owner = false) {
     '/server — меню мира',
     '/list — игроки на сервере',
     '/time — время суток',
+    '/weather — погода',
     '/seed — зерно мира',
     '/difficulty — сложность',
     '/chat on|off — чат мира в этот чат',
@@ -59,7 +60,7 @@ export function deniedText({ userId, chatId, isPrivate }) {
   return lines.join('\n');
 }
 
-export function serverMenu({ list, daytime, worldDay, difficulty, tps }) {
+export function serverMenu({ list, daytime, weather, difficulty, tps }) {
   const lines = [
     `<b>${escapeHtml(config.server.motd)}</b>`,
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
@@ -75,8 +76,8 @@ export function serverMenu({ list, daytime, worldDay, difficulty, tps }) {
   }
 
   lines.push('', `${daytime.icon} Время: <b>${daytime.label}</b>`);
-  if (worldDay != null) {
-    lines.push(`День ${worldDay}`);
+  if (weather) {
+    lines.push(`${weather.icon} Погода: <b>${escapeHtml(weather.label)}</b>`);
   }
   if (difficulty) {
     lines.push(`Сложность: <b>${escapeHtml(difficulty)}</b>`);
@@ -100,12 +101,8 @@ export function listText(list) {
   return `Сейчас на сервере ${list.online} из ${list.max}:\n${formatPlayerNames(list.players)}`;
 }
 
-export function timeText(daytime, worldDay) {
-  const lines = [`${daytime.icon} ${daytime.label}`];
-  if (worldDay != null) {
-    lines.push(`День ${worldDay}`);
-  }
-  return lines.join('\n');
+export function timeText(daytime) {
+  return `${daytime.icon} ${daytime.label}`;
 }
 
 export function timeSetUsage() {
@@ -118,6 +115,13 @@ export function timeSetDone(label) {
 
 export function weatherUsage() {
   return 'Использование: /weather clear|rain|thunder';
+}
+
+export function weatherText(weather) {
+  if (!weather) {
+    return 'Не удалось прочитать погоду.';
+  }
+  return `${weather.icon} Погода: <b>${escapeHtml(weather.label)}</b>`;
 }
 
 export function weatherSetDone(label) {

@@ -203,6 +203,55 @@ export function weatherLabel(key) {
   return WEATHER_LABELS[String(key).toLowerCase()] || null;
 }
 
+const WEATHER_ICONS = {
+  clear: '🌤️',
+  rain: '🌧️',
+  thunder: '⛈️',
+};
+
+export function describeWeather(key) {
+  const id = String(key || '').toLowerCase();
+  const label = WEATHER_LABELS[id];
+  if (!label) {
+    return null;
+  }
+  return { key: id, label, icon: WEATHER_ICONS[id] };
+}
+
+const EXECUTE_FAIL = /test failed|проверка не пройдена/i;
+const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse/i;
+
+export function parseWeatherQuery(raw) {
+  const text = stripMcColor(raw);
+  if (!text || COMMAND_ERROR.test(text) || /usage:/i.test(text)) {
+    return null;
+  }
+  if (/\b(thunder|thundering|storm|гроза)\b/i.test(text)) {
+    return 'thunder';
+  }
+  if (/\b(rain|raining|дождь)\b/i.test(text)) {
+    return 'rain';
+  }
+  if (/\b(clear|clearing|ясно)\b/i.test(text)) {
+    return 'clear';
+  }
+  return null;
+}
+
+export function parseWeatherCheck(raw) {
+  const text = stripMcColor(raw);
+  if (COMMAND_ERROR.test(text) || /cannot be|not allowed|failed to/i.test(text)) {
+    return null;
+  }
+  if (!text || /test passed|the condition is true/i.test(text)) {
+    return true;
+  }
+  if (EXECUTE_FAIL.test(text)) {
+    return false;
+  }
+  return null;
+}
+
 export function timeSetLabel(key) {
   return TIME_SET_LABELS[String(key).toLowerCase()] || null;
 }

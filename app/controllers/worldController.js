@@ -9,6 +9,7 @@ import {
   timeSetUsage,
   timeText,
   weatherSetDone,
+  weatherText,
   weatherUsage,
 } from '../helpers/copyHelper.js';
 import {
@@ -18,13 +19,13 @@ import {
   timeSetLabel,
   weatherLabel,
 } from '../helpers/minecraftHelper.js';
-import { fetchTime } from '../helpers/serverHelper.js';
+import { fetchTime, queryWeather } from '../helpers/serverHelper.js';
 
 export async function time(ctx) {
   const args = commandArgs(ctx).toLowerCase();
   if (!args) {
-    const { daytime, worldDay } = await fetchTime();
-    await ctx.reply(timeText(daytime, worldDay), HTML);
+    const { daytime } = await fetchTime();
+    await ctx.reply(timeText(daytime), HTML);
     return;
   }
   if (!(await requireOwner(ctx))) {
@@ -42,10 +43,14 @@ export async function time(ctx) {
 }
 
 export async function weather(ctx) {
+  const args = commandArgs(ctx).toLowerCase();
+  if (!args) {
+    await ctx.reply(weatherText(await queryWeather()), HTML);
+    return;
+  }
   if (!(await requireOwner(ctx))) {
     return;
   }
-  const args = commandArgs(ctx).toLowerCase();
   const label = weatherLabel(args);
   if (!label) {
     await ctx.reply(weatherUsage(), HTML);

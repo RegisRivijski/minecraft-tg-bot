@@ -1,10 +1,13 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import {
   describeDaytime,
+  describeWeather,
   parseDifficulty,
   parsePlayerList,
   parseTimeQuery,
   parseTps,
+  parseWeatherCheck,
+  parseWeatherQuery,
 } from './minecraftHelper.js';
 
 async function queryDaytimeTicks() {
@@ -23,11 +26,41 @@ async function queryDaytimeTicks() {
   return ((gametime % 24000) + 24000) % 24000;
 }
 
+const WEATHER_PREDICATE = (state) => (
+  `execute in minecraft:overworld positioned 0 64 0 if predicate {condition:minecraft:weather_check,${state}}`
+);
+
+export async function queryWeather() {
+  const [queryRaw, thunderRaw, rainRaw] = await Promise.all([
+    rconSend('weather query').catch(() => ''),
+    rconSend(WEATHER_PREDICATE('thundering:true')).catch(() => ''),
+    rconSend(WEATHER_PREDICATE('raining:true')).catch(() => ''),
+  ]);
+
+  const fromQuery = parseWeatherQuery(queryRaw);
+  if (fromQuery) {
+    return describeWeather(fromQuery);
+  }
+
+  const thunder = parseWeatherCheck(thunderRaw);
+  if (thunder) {
+    return describeWeather('thunder');
+  }
+  const rain = parseWeatherCheck(rainRaw);
+  if (rain) {
+    return describeWeather('rain');
+  }
+  if (thunder === false && rain === false) {
+    return describeWeather('clear');
+  }
+  return null;
+}
+
 export async function fetchServer() {
-  const [listRaw, daytimeTicks, dayRaw, difficultyRaw, tpsRaw] = await Promise.all([
+  const [listRaw, daytimeTicks, weather, difficultyRaw, tpsRaw] = await Promise.all([
     rconSend('list'),
     queryDaytimeTicks(),
-    rconSend('time query day'),
+    queryWeather(),
     rconSend('difficulty'),
     rconSend('tps').catch(() => ''),
   ]);
@@ -35,19 +68,14 @@ export async function fetchServer() {
   return {
     list: parsePlayerList(listRaw),
     daytime: describeDaytime(daytimeTicks),
-    worldDay: parseTimeQuery(dayRaw),
+    weather,
     difficulty: parseDifficulty(difficultyRaw),
     tps: parseTps(tpsRaw),
   };
 }
 
 export async function fetchTime() {
-  const [daytimeTicks, dayRaw] = await Promise.all([
-    queryDaytimeTicks(),
-    rconSend('time query day'),
-  ]);
   return {
-    daytime: describeDaytime(daytimeTicks),
-    worldDay: parseTimeQuery(dayRaw),
+    daytime: describeDaytime(await queryDaytimeTicks()),
   };
 }
