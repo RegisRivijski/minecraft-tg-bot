@@ -26,15 +26,28 @@ async function queryDaytimeTicks() {
   return ((gametime % 24000) + 24000) % 24000;
 }
 
-const WEATHER_PREDICATE = (state) => (
-  `execute in minecraft:overworld positioned 0 64 0 if predicate {condition:minecraft:weather_check,${state}}`
-);
+const WEATHER_CHECKS = [
+  (flag) => `execute in minecraft:overworld if predicate {"condition":"minecraft:weather_check","${flag}":true}`,
+  (flag) => `execute in minecraft:overworld if predicate {condition:"minecraft:weather_check",${flag}:true}`,
+];
+
+async function checkWeatherFlag(flag) {
+  let lastRaw = '';
+  for (const build of WEATHER_CHECKS) {
+    lastRaw = await rconSend(build(flag)).catch(() => '');
+    const result = parseWeatherCheck(lastRaw);
+    if (result !== null) {
+      return { result, raw: lastRaw };
+    }
+  }
+  return { result: null, raw: lastRaw };
+}
 
 export async function queryWeather() {
-  const [queryRaw, thunderRaw, rainRaw] = await Promise.all([
+  const [queryRaw, thunder, rain] = await Promise.all([
     rconSend('weather query').catch(() => ''),
-    rconSend(WEATHER_PREDICATE('thundering:true')).catch(() => ''),
-    rconSend(WEATHER_PREDICATE('raining:true')).catch(() => ''),
+    checkWeatherFlag('thundering'),
+    checkWeatherFlag('raining'),
   ]);
 
   const fromQuery = parseWeatherQuery(queryRaw);
@@ -42,17 +55,21 @@ export async function queryWeather() {
     return describeWeather(fromQuery);
   }
 
-  const thunder = parseWeatherCheck(thunderRaw);
-  if (thunder) {
+  if (thunder.result) {
     return describeWeather('thunder');
   }
-  const rain = parseWeatherCheck(rainRaw);
-  if (rain) {
+  if (rain.result) {
     return describeWeather('rain');
   }
-  if (thunder === false && rain === false) {
+  if (thunder.result === false && rain.result === false) {
     return describeWeather('clear');
   }
+
+  console.warn('[weather] unread', {
+    query: String(queryRaw).slice(0, 200),
+    thunder: String(thunder.raw).slice(0, 200),
+    rain: String(rain.raw).slice(0, 200),
+  });
   return null;
 }
 

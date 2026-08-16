@@ -219,7 +219,8 @@ export function describeWeather(key) {
 }
 
 const EXECUTE_FAIL = /test failed|проверка не пройдена/i;
-const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse/i;
+const EXECUTE_PASS = /test passed|проверка пройдена/i;
+const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse|could not parse|malformed/i;
 
 export function parseWeatherQuery(raw) {
   const text = stripMcColor(raw);
@@ -240,14 +241,14 @@ export function parseWeatherQuery(raw) {
 
 export function parseWeatherCheck(raw) {
   const text = stripMcColor(raw);
-  if (COMMAND_ERROR.test(text) || /cannot be|not allowed|failed to/i.test(text)) {
+  if (COMMAND_ERROR.test(text) || /cannot be|not allowed|failed to parse/i.test(text)) {
     return null;
-  }
-  if (!text || /test passed|the condition is true/i.test(text)) {
-    return true;
   }
   if (EXECUTE_FAIL.test(text)) {
     return false;
+  }
+  if (!text || EXECUTE_PASS.test(text)) {
+    return true;
   }
   return null;
 }

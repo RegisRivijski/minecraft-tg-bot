@@ -1,4 +1,4 @@
-import { isOwnerCtx } from '../constants/access.js';
+import { isOwnerCtx } from '../helpers/accessHelper.js';
 import { HTML, helpText, loadingWorld } from '../helpers/copyHelper.js';
 
 export async function start(ctx) {
