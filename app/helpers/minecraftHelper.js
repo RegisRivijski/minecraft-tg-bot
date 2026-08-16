@@ -357,9 +357,6 @@ const EVENT_NOISE = [
   /^com\./,
   /^\s*at /,
   /^Caused by:/,
-  / died, message: '/,
-  /^Named entity /,
-  /\['[^']*'\/\d+, uuid='[^']+'/,
 ];
 
 const ADVANCEMENT_LINE = [
@@ -432,9 +429,58 @@ const DEATH_LINE = [
   / заморожен/,
 ];
 
+const ENTITY_DUMP = /^(?:[A-Za-z0-9_:]+ )?(?<type>[A-Za-z0-9_:]+)\['[^']*'\/\d+, uuid='[^']+'/;
+const QUOTED_DEATH = / died, message: '(?<message>.*)'\s*$/;
+const NAMED_ENTITY = /^Named entity (?<type>\S+)/i;
+const PLAYER_NICK = /^[A-Za-z0-9_]{1,16} /;
+
+function isPlayerEntityType(type) {
+  const key = String(type || '').toLowerCase();
+  return key === 'player'
+    || key === 'serverplayer'
+    || key === 'craftplayer'
+    || key === 'minecraft:player'
+    || key.endsWith(':player');
+}
+
+function unwrapEntityDeath(payload) {
+  const quoted = payload.match(QUOTED_DEATH);
+  const dump = payload.match(ENTITY_DUMP);
+  const named = payload.match(NAMED_ENTITY);
+
+  if (named) {
+    if (!isPlayerEntityType(named.groups.type)) {
+      return null;
+    }
+    if (quoted?.groups?.message) {
+      return quoted.groups.message;
+    }
+    const afterDied = payload.replace(/^Named entity \S+.+? died:\s*/i, '').trim();
+    return afterDied && afterDied !== payload ? afterDied : null;
+  }
+
+  if (dump) {
+    if (!isPlayerEntityType(dump.groups.type)) {
+      return null;
+    }
+    return quoted?.groups?.message || null;
+  }
+
+  if (quoted) {
+    return quoted.groups.message;
+  }
+
+  return payload;
+}
+
 export function parseWorldEventLine(raw) {
-  const payload = stripLogPayload(raw);
-  if (!payload || EVENT_NOISE.some((pattern) => pattern.test(payload))) {
+  const stripped = stripLogPayload(raw);
+  if (!stripped || EVENT_NOISE.some((pattern) => pattern.test(stripped))) {
+    return null;
+  }
+
+  const payload = unwrapEntityDeath(stripped);
+  if (!payload) {
     return null;
   }
 
@@ -451,7 +497,7 @@ export function parseWorldEventLine(raw) {
   }
 
   // Death messages start with a Minecraft nick; skip everything else.
-  if (!/^[A-Za-z0-9_]{1,16} /.test(payload)) {
+  if (!PLAYER_NICK.test(payload)) {
     return null;
   }
 
