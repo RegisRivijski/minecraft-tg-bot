@@ -3,59 +3,86 @@ import { Rcon } from 'rcon-client';
 import config from '../../../config/default.js';
 
 let client = null;
-let connecting = null;
+let connectPromise = null;
+let shuttingDown = false;
 
-function attach(rcon) {
-  rcon.on('end', () => {
-    if (client === rcon) {
-      client = null;
-    }
-  });
+function forgetClient(rcon) {
+  if (client === rcon) {
+    client = null;
+  }
+}
+
+function listenForDisconnect(rcon) {
+  rcon.on('end', () => forgetClient(rcon));
   rcon.on('error', (err) => {
     console.error('[rcon]', err.message);
-    if (client === rcon) {
-      client = null;
-    }
+    forgetClient(rcon);
   });
 }
 
-async function getClient() {
+async function connect() {
+  const rcon = await Rcon.connect({
+    host: config.rcon.host,
+    port: config.rcon.port,
+    password: config.rcon.password,
+    timeout: config.rcon.timeoutMs,
+  });
+  listenForDisconnect(rcon);
+  client = rcon;
+  console.info(`[rcon] connected ${config.rcon.host}:${config.rcon.port}`);
+  return rcon;
+}
+
+async function getConnectedClient() {
+  if (shuttingDown) {
+    throw new Error('not connected');
+  }
   if (client) {
     return client;
   }
-  if (connecting) {
-    return connecting;
+  if (connectPromise) {
+    return connectPromise;
   }
 
-  connecting = (async () => {
-    const rcon = await Rcon.connect({
-      host: config.rcon.host,
-      port: config.rcon.port,
-      password: config.rcon.password,
-      timeout: config.rcon.timeoutMs,
-    });
-    attach(rcon);
-    client = rcon;
-    console.info(`[rcon] connected ${config.rcon.host}:${config.rcon.port}`);
-    return rcon;
-  })().finally(() => {
-    connecting = null;
+  connectPromise = connect().finally(() => {
+    connectPromise = null;
   });
-
-  return connecting;
+  return connectPromise;
 }
 
-export async function rconSend(command) {
-  const rcon = await getClient();
-  const result = await rcon.send(command);
-  return String(result || '').trim();
-}
-
-export async function closeRcon() {
+async function dropConnection() {
   const rcon = client;
   client = null;
   if (!rcon) {
     return;
   }
   await rcon.end().catch(() => {});
+}
+
+async function sendCommand(command) {
+  const rcon = await getConnectedClient();
+  return String(await rcon.send(command) || '').trim();
+}
+
+export async function rconSend(command) {
+  if (shuttingDown) {
+    throw new Error('not connected');
+  }
+
+  try {
+    return await sendCommand(command);
+  } catch (err) {
+    // Timeout / drop often leaves a half-dead socket; reconnect once and retry.
+    console.warn('[rcon] command failed, reconnecting:', err.message);
+    await dropConnection();
+    return sendCommand(command);
+  }
+}
+
+export async function closeRcon() {
+  shuttingDown = true;
+  if (connectPromise) {
+    await connectPromise.catch(() => {});
+  }
+  await dropConnection();
 }

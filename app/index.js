@@ -19,36 +19,11 @@ function buildTelegramApiRoot() {
   return `${config.telegramBotApi.protocol}//${config.telegramBotApi.host}:${config.telegramBotApi.port}`;
 }
 
-export default async function main() {
-  if (!config.bot.apiToken) {
-    throw new Error('MINECRAFT_TG_BOT_API_TOKEN is required');
-  }
-  if (!OWNER_IDS.length && !VIEWER_IDS.length && !CHAT_IDS.length) {
-    console.warn('[acl] OWNER_IDS, VIEWER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
-  }
+function createBot(apiRoot) {
+  return new Telegraf(config.bot.apiToken, apiRoot ? { telegram: { apiRoot } } : {});
+}
 
-  await minecraftTgBot.asPromise();
-  await loadChatRelay();
-
-  const apiRoot = buildTelegramApiRoot();
-  const bot = new Telegraf(config.bot.apiToken, apiRoot ? { telegram: { apiRoot } } : {});
-
-  bot.use(errorsHandler);
-  bot.use(allowedChat);
-  registerRoutes(bot);
-
-  bot.catch((error) => {
-    console.error('[telegraf]', error.code || error.message);
-  });
-
-  const stopWatcher = startPlayerWatcher(bot.telegram);
-  const stopLogWatcher = startLogWatcher(bot.telegram);
-
-  await bot.launch();
-  await registerBotCommands(bot).catch((error) => {
-    console.warn('[telegram] setMyCommands failed:', error.message);
-  });
-
+function printStartupTable(apiRoot) {
   console.table({
     Application: config.application.name,
     Version: config.application.version,
@@ -61,17 +36,56 @@ export default async function main() {
     Mongo: config.db.mongodb.options.dbName,
     LocalApi: Boolean(apiRoot),
   });
+}
 
-  const stop = async (signal) => {
-    stopWatcher();
+function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher }) {
+  const shutdown = async (signal) => {
+    stopPlayerWatcher();
     stopLogWatcher();
     await closeRcon();
     await minecraftTgBot.close().catch(() => {});
     bot.stop(signal);
     process.exit(0);
   };
-  process.once('SIGINT', () => stop('SIGINT'));
-  process.once('SIGTERM', () => stop('SIGTERM'));
+
+  process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+}
+
+export default async function main() {
+  if (!config.bot.apiToken) {
+    throw new Error('MINECRAFT_TG_BOT_API_TOKEN is required');
+  }
+  if (!config.db.mongodb.url) {
+    throw new Error('MONGODB_1_HOSTNAME is required');
+  }
+  if (!OWNER_IDS.length && !VIEWER_IDS.length && !CHAT_IDS.length) {
+    console.warn('[acl] OWNER_IDS, VIEWER_IDS and CHAT_IDS are empty — fill app/constants/access.js');
+  }
+
+  await minecraftTgBot.asPromise();
+  await loadChatRelay();
+
+  const apiRoot = buildTelegramApiRoot();
+  const bot = createBot(apiRoot);
+
+  bot.use(errorsHandler);
+  bot.use(allowedChat);
+  registerRoutes(bot);
+  bot.catch((error) => {
+    console.error('[telegraf]', error.code || error.message);
+  });
+
+  const stopPlayerWatcher = startPlayerWatcher(bot.telegram);
+  const stopLogWatcher = startLogWatcher(bot.telegram);
+
+  await bot.launch();
+  await registerBotCommands(bot).catch((error) => {
+    console.warn('[telegram] setMyCommands failed:', error.message);
+  });
+
+  printStartupTable(apiRoot);
+  listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher });
 
   return bot;
 }

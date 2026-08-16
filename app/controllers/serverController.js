@@ -4,7 +4,8 @@ import { parsePlayerList } from '../helpers/minecraftHelper.js';
 import { fetchServer } from '../helpers/serverHelper.js';
 
 export async function server(ctx) {
-  await ctx.reply(serverMenu(await fetchServer()), HTML);
+  const snapshot = await fetchServer();
+  await ctx.reply(serverMenu(snapshot), HTML);
 }
 
 export async function list(ctx) {

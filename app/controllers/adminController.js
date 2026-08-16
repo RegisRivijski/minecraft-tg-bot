@@ -10,12 +10,22 @@ import {
 } from '../helpers/copyHelper.js';
 import { commandArgs, escapeHtml, stripMcColor } from '../helpers/minecraftHelper.js';
 
+const RCON_REPLY_LIMIT = 3500;
+
 function speakerName(ctx) {
   const from = ctx.from || {};
   const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
     || from.username
     || String(from.id || 'Telegram');
   return String(name).replace(/[\r\n]+/g, ' ').trim();
+}
+
+function formatRconReply(raw) {
+  const text = stripMcColor(raw);
+  if (!text) {
+    return null;
+  }
+  return `<pre>${escapeHtml(text).slice(0, RCON_REPLY_LIMIT)}</pre>`;
 }
 
 export async function say(ctx) {
@@ -38,8 +48,8 @@ export async function whitelist(ctx) {
     await ctx.reply(whitelistUsage(), HTML);
     return;
   }
-  const result = stripMcColor(await rconSend(`whitelist ${args}`));
-  await ctx.reply(result ? `<pre>${escapeHtml(result).slice(0, 3500)}</pre>` : 'Команда выполнена.', HTML);
+  const reply = formatRconReply(await rconSend(`whitelist ${args}`));
+  await ctx.reply(reply || 'Команда выполнена.', HTML);
 }
 
 export async function rcon(ctx) {
@@ -51,6 +61,6 @@ export async function rcon(ctx) {
     await ctx.reply(rconUsage(), HTML);
     return;
   }
-  const result = stripMcColor(await rconSend(command));
-  await ctx.reply(result ? `<pre>${escapeHtml(result).slice(0, 3500)}</pre>` : rconEmpty(), HTML);
+  const reply = formatRconReply(await rconSend(command));
+  await ctx.reply(reply || rconEmpty(), HTML);
 }

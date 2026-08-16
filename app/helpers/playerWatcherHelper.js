@@ -4,12 +4,12 @@ import { notifyJoinLeave } from './joinNotifyHelper.js';
 import config from '../../config/default.js';
 
 export function startPlayerWatcher(telegram) {
-  let known = null;
+  let previousPlayers = null;
   let timer = null;
   let inFlight = false;
   let lastWarnAt = 0;
 
-  const tick = async () => {
+  const pollPlayerList = async () => {
     if (inFlight) {
       return;
     }
@@ -23,17 +23,20 @@ export function startPlayerWatcher(telegram) {
         }
         return;
       }
-      const next = new Set(current.players);
 
-      if (known) {
-        const joined = current.players.filter((name) => !known.has(name));
-        const left = [...known].filter((name) => !next.has(name));
+      const currentPlayers = new Set(current.players);
+
+      // First successful poll only stores a snapshot, so a bot restart
+      // does not announce everyone who is already online.
+      if (previousPlayers) {
+        const joined = current.players.filter((name) => !previousPlayers.has(name));
+        const left = [...previousPlayers].filter((name) => !currentPlayers.has(name));
         if (joined.length || left.length) {
           await notifyJoinLeave(telegram, { joined, left, current });
         }
       }
 
-      known = next;
+      previousPlayers = currentPlayers;
     } catch (err) {
       console.warn('[watcher]', err.message);
     } finally {
@@ -41,8 +44,8 @@ export function startPlayerWatcher(telegram) {
     }
   };
 
-  timer = setInterval(tick, config.server.pollIntervalMs);
-  tick();
+  timer = setInterval(pollPlayerList, config.server.pollIntervalMs);
+  pollPlayerList();
 
   return () => {
     if (timer) {

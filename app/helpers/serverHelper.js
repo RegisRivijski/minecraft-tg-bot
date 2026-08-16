@@ -2,6 +2,7 @@ import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import {
   describeDaytime,
   describeWeather,
+  normalizeDayTicks,
   parseDifficulty,
   parsePlayerList,
   parseTimeQuery,
@@ -16,14 +17,14 @@ async function queryDaytimeTicks() {
     if (ticks == null) {
       continue;
     }
-    return ((ticks % 24000) + 24000) % 24000;
+    return normalizeDayTicks(ticks);
   }
 
   const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
   if (gametime == null) {
     return null;
   }
-  return ((gametime % 24000) + 24000) % 24000;
+  return normalizeDayTicks(gametime);
 }
 
 const WEATHER_CHECKS = [
@@ -33,8 +34,8 @@ const WEATHER_CHECKS = [
 
 async function checkWeatherFlag(flag) {
   let lastRaw = '';
-  for (const build of WEATHER_CHECKS) {
-    lastRaw = await rconSend(build(flag)).catch(() => '');
+  for (const buildCommand of WEATHER_CHECKS) {
+    lastRaw = await rconSend(buildCommand(flag)).catch(() => '');
     const result = parseWeatherCheck(lastRaw);
     if (result !== null) {
       return { result, raw: lastRaw };
@@ -78,7 +79,7 @@ export async function fetchServer() {
     rconSend('list'),
     queryDaytimeTicks(),
     queryWeather(),
-    rconSend('difficulty'),
+    rconSend('difficulty').catch(() => ''),
     rconSend('tps').catch(() => ''),
   ]);
 

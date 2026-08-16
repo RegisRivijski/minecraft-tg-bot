@@ -1,3 +1,4 @@
+// Telegram HTML and command text
 export function escapeHtml(text) {
   return String(text)
     .replace(/&/g, '&amp;')
@@ -16,6 +17,7 @@ export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }
 
+// RCON: player list
 function splitPlayerNames(namesRaw) {
   return String(namesRaw || '')
     .split(',')
@@ -51,33 +53,38 @@ export function parsePlayerList(raw) {
   };
 }
 
+// RCON: time of day
 export function parseTimeQuery(raw) {
   const text = stripMcColor(raw);
   if (!text || /incorrect argument|unknown or incomplete|syntax error|unexpected argument/i.test(text)) {
     return null;
   }
 
-  const labeled = text.match(/time is (-?\d+)/i)
+  const labeledMatch = text.match(/time is (-?\d+)/i)
     || text.match(/время[:\s]+(-?\d+)/i)
     || text.match(/args=\[(-?\d+)/i);
-  if (labeled) {
-    return Number(labeled[1]);
+  if (labeledMatch) {
+    return Number(labeledMatch[1]);
   }
 
-  const match = text.match(/(-?\d+)/);
-  return match ? Number(match[1]) : null;
+  const numberMatch = text.match(/(-?\d+)/);
+  return numberMatch ? Number(numberMatch[1]) : null;
 }
 
-const TICKS_PER_DAY = 24000;
+export const TICKS_PER_DAY = 24000;
+
+export function normalizeDayTicks(ticks) {
+  return ((ticks % TICKS_PER_DAY) + TICKS_PER_DAY) % TICKS_PER_DAY;
+}
 
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
 
 export function ticksToClock(ticks) {
-  const t = ((ticks % TICKS_PER_DAY) + TICKS_PER_DAY) % TICKS_PER_DAY;
-  const hours = (Math.floor(t / 1000) + 6) % 24;
-  const minutes = Math.floor((t % 1000) * 60 / 1000);
+  const dayTicks = normalizeDayTicks(ticks);
+  const hours = (Math.floor(dayTicks / 1000) + 6) % 24;
+  const minutes = Math.floor((dayTicks % 1000) * 60 / 1000);
   return `${pad2(hours)}:${pad2(minutes)}`;
 }
 
@@ -88,33 +95,33 @@ export function describeDaytime(ticks) {
     };
   }
 
-  const t = ((ticks % TICKS_PER_DAY) + TICKS_PER_DAY) % TICKS_PER_DAY;
-  const clock = ticksToClock(t);
+  const dayTicks = normalizeDayTicks(ticks);
+  const clock = ticksToClock(dayTicks);
   let name;
   let icon;
   let phase;
 
-  if (t >= 23000 || t < 1000) {
+  if (dayTicks >= 23000 || dayTicks < 1000) {
     name = 'Рассвет';
     icon = '🌅';
     phase = 'sunrise';
-  } else if (t < 6000) {
+  } else if (dayTicks < 6000) {
     name = 'Утро';
     icon = '🌤️';
     phase = 'morning';
-  } else if (t < 9000) {
+  } else if (dayTicks < 9000) {
     name = 'Полдень';
     icon = '☀️';
     phase = 'noon';
-  } else if (t < 12000) {
+  } else if (dayTicks < 12000) {
     name = 'День';
     icon = '☀️';
     phase = 'day';
-  } else if (t < 13000) {
+  } else if (dayTicks < 13000) {
     name = 'Закат';
     icon = '🌇';
     phase = 'sunset';
-  } else if (t < 18000) {
+  } else if (dayTicks < 18000) {
     name = 'Ночь';
     icon = '🌙';
     phase = 'night';
@@ -128,7 +135,7 @@ export function describeDaytime(ticks) {
     label: `${clock} · ${name}`,
     icon,
     phase,
-    ticks: t,
+    ticks: dayTicks,
     clock,
     name,
   };
@@ -145,14 +152,15 @@ export function formatPlayerNames(players) {
   return players.map(formatPlayerName).join(', ');
 }
 
+// RCON: TPS
 export function parseTps(raw) {
   const text = stripMcColor(raw);
-  const nums = [...text.matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
-  if (!nums.length) {
+  const numbers = [...text.matchAll(/(\d+(?:\.\d+)?)/g)].map((match) => Number(match[1]));
+  if (!numbers.length) {
     return null;
   }
-  const values = nums.length >= 3 ? nums.slice(-3) : nums;
-  return values[0];
+  const window = numbers.length >= 3 ? numbers.slice(-3) : numbers;
+  return window[0];
 }
 
 export function describeTps(tps) {
@@ -172,6 +180,7 @@ export function describeTps(tps) {
   return `Сильные лаги (${value.toFixed(1)} TPS)`;
 }
 
+// World labels
 const DIFFICULTY_LABELS = {
   peaceful: 'Мирная',
   easy: 'Лёгкая',
@@ -269,6 +278,7 @@ export function parseDifficulty(raw) {
   return match ? difficultyLabel(match[1]) : (text || null);
 }
 
+// latest.log: chat, join/leave, deaths, advancements
 const CHAT_LINE = /^(?:\[Not Secure\] )?<(?<name>[^>]+)> (?<message>.+)$/;
 const SERVER_SAY = /^\[Server\] (?<message>.+)$/;
 const JOIN_LINE = /^(?<name>.+?) (?:joined the game|присоединил(?:ся|ась) к игре)$/;
@@ -280,10 +290,10 @@ export function stripLogPayload(raw) {
     return '';
   }
 
-  const prefixed = text.match(/^\[.+?\] \[.+?\]: (.*)$/)
+  const prefixMatch = text.match(/^\[.+?\] \[.+?\]: (.*)$/)
     || text.match(/^\[[0-9:.\s]+(?:\s+\w+)?\]: (.*)$/)
     || text.match(/^\[[^\]]+\]: (.*)$/);
-  return (prefixed ? prefixed[1] : text).trim();
+  return (prefixMatch ? prefixMatch[1] : text).trim();
 }
 
 export function parseJoinLeaveLine(raw) {
@@ -440,6 +450,7 @@ export function parseWorldEventLine(raw) {
     }
   }
 
+  // Death messages start with a Minecraft nick; skip everything else.
   if (!/^[A-Za-z0-9_]{1,16} /.test(payload)) {
     return null;
   }

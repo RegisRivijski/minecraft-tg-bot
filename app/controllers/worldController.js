@@ -22,8 +22,8 @@ import {
 import { fetchTime, queryWeather } from '../helpers/serverHelper.js';
 
 export async function time(ctx) {
-  const args = commandArgs(ctx).toLowerCase();
-  if (!args) {
+  const timeArg = commandArgs(ctx).toLowerCase();
+  if (!timeArg) {
     const { daytime } = await fetchTime();
     await ctx.reply(timeText(daytime), HTML);
     return;
@@ -32,51 +32,57 @@ export async function time(ctx) {
     return;
   }
 
-  const label = timeSetLabel(args);
-  if (!label && !/^\d+$/.test(args)) {
+  const presetLabel = timeSetLabel(timeArg);
+  const isTickCount = /^\d+$/.test(timeArg);
+  if (!presetLabel && !isTickCount) {
     await ctx.reply(timeSetUsage(), HTML);
     return;
   }
 
-  await rconSend(`time set ${args}`);
-  await ctx.reply(timeSetDone(label || args), HTML);
+  await rconSend(`time set ${timeArg}`);
+  await ctx.reply(timeSetDone(presetLabel || timeArg), HTML);
 }
 
 export async function weather(ctx) {
-  const args = commandArgs(ctx).toLowerCase();
-  if (!args) {
+  const weatherArg = commandArgs(ctx).toLowerCase();
+  if (!weatherArg) {
     await ctx.reply(weatherText(await queryWeather()), HTML);
     return;
   }
   if (!(await requireOwner(ctx))) {
     return;
   }
-  const label = weatherLabel(args);
-  if (!label) {
+
+  const presetLabel = weatherLabel(weatherArg);
+  if (!presetLabel) {
     await ctx.reply(weatherUsage(), HTML);
     return;
   }
-  await rconSend(`weather ${args}`);
-  await ctx.reply(weatherSetDone(label), HTML);
+
+  await rconSend(`weather ${weatherArg}`);
+  await ctx.reply(weatherSetDone(presetLabel), HTML);
 }
 
 export async function seed(ctx) {
-  await ctx.reply(seedText(parseSeed(await rconSend('seed'))), HTML);
+  const worldSeed = parseSeed(await rconSend('seed'));
+  await ctx.reply(seedText(worldSeed), HTML);
 }
 
 export async function difficulty(ctx) {
-  const args = commandArgs(ctx).toLowerCase();
-  if (!args) {
-    await ctx.reply(difficultyText(parseDifficulty(await rconSend('difficulty'))), HTML);
+  const difficultyArg = commandArgs(ctx).toLowerCase();
+  if (!difficultyArg) {
+    const current = parseDifficulty(await rconSend('difficulty'));
+    await ctx.reply(difficultyText(current), HTML);
     return;
   }
   if (!(await requireOwner(ctx))) {
     return;
   }
-  if (!['peaceful', 'easy', 'normal', 'hard'].includes(args)) {
+  if (!['peaceful', 'easy', 'normal', 'hard'].includes(difficultyArg)) {
     await ctx.reply(difficultyUsage(), HTML);
     return;
   }
-  await rconSend(`difficulty ${args}`);
-  await ctx.reply(difficultyText(parseDifficulty(args)), HTML);
+
+  await rconSend(`difficulty ${difficultyArg}`);
+  await ctx.reply(difficultyText(parseDifficulty(difficultyArg)), HTML);
 }

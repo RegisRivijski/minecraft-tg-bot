@@ -5,11 +5,12 @@ let joinRelay = new Set();
 let deathRelay = new Set();
 let advancementRelay = new Set();
 
-function inheritedRelay(value, fallback) {
+// Older documents used a single eventRelay flag for both deaths and advancements.
+function relayOrLegacyEventFlag(value, legacyEventRelay) {
   if (value === true || value === false) {
     return value;
   }
-  return Boolean(fallback);
+  return Boolean(legacyEventRelay);
 }
 
 export async function loadChatRelay() {
@@ -39,21 +40,21 @@ export async function loadChatRelay() {
   advancementRelay = new Set();
 
   for (const doc of docs) {
-    const id = Number(doc.chatId);
-    if (!Number.isFinite(id)) {
+    const chatId = Number(doc.chatId);
+    if (!Number.isFinite(chatId)) {
       continue;
     }
     if (doc.chatRelay) {
-      chatRelay.add(id);
+      chatRelay.add(chatId);
     }
     if (doc.joinRelay) {
-      joinRelay.add(id);
+      joinRelay.add(chatId);
     }
-    if (inheritedRelay(doc.deathRelay, doc.eventRelay)) {
-      deathRelay.add(id);
+    if (relayOrLegacyEventFlag(doc.deathRelay, doc.eventRelay)) {
+      deathRelay.add(chatId);
     }
-    if (inheritedRelay(doc.advancementRelay, doc.eventRelay)) {
-      advancementRelay.add(id);
+    if (relayOrLegacyEventFlag(doc.advancementRelay, doc.eventRelay)) {
+      advancementRelay.add(chatId);
     }
   }
   console.info(`[relay] loaded chat=[${[...chatRelay].join(', ') || '—'}] joins=[${[...joinRelay].join(', ') || '—'}] deaths=[${[...deathRelay].join(', ') || '—'}] advancements=[${[...advancementRelay].join(', ') || '—'}]`);
@@ -91,8 +92,7 @@ export function listAdvancementRelay() {
   return [...advancementRelay];
 }
 
-async function persistRelay(chatId, fields, title = '') {
-  const id = Number(chatId);
+async function saveRelayToDb(chatId, fields, title = '') {
   const $set = {
     ...fields,
     updated: new Date(),
@@ -102,11 +102,11 @@ async function persistRelay(chatId, fields, title = '') {
   }
 
   await Chat.findOneAndUpdate(
-    { chatId: id },
+    { chatId },
     {
       $set,
       $setOnInsert: {
-        chatId: id,
+        chatId,
         created: new Date(),
       },
     },
@@ -114,9 +114,9 @@ async function persistRelay(chatId, fields, title = '') {
   );
 }
 
-function applyCache(cache, chatId, on) {
+function updateRelayCache(cache, chatId, enabled) {
   const id = Number(chatId);
-  if (on) {
+  if (enabled) {
     cache.add(id);
   } else {
     cache.delete(id);
@@ -124,30 +124,30 @@ function applyCache(cache, chatId, on) {
   return id;
 }
 
-export async function setChatRelay(chatId, on, title = '') {
-  const id = applyCache(chatRelay, chatId, on);
-  await persistRelay(id, { chatRelay: on }, title);
-  console.info(`[relay] chat ${id} ${on ? 'on' : 'off'}`);
-  return on;
+export async function setChatRelay(chatId, enabled, title = '') {
+  const id = updateRelayCache(chatRelay, chatId, enabled);
+  await saveRelayToDb(id, { chatRelay: enabled }, title);
+  console.info(`[relay] chat ${id} ${enabled ? 'on' : 'off'}`);
+  return enabled;
 }
 
-export async function setJoinRelay(chatId, on, title = '') {
-  const id = applyCache(joinRelay, chatId, on);
-  await persistRelay(id, { joinRelay: on }, title);
-  console.info(`[relay] joins ${id} ${on ? 'on' : 'off'}`);
-  return on;
+export async function setJoinRelay(chatId, enabled, title = '') {
+  const id = updateRelayCache(joinRelay, chatId, enabled);
+  await saveRelayToDb(id, { joinRelay: enabled }, title);
+  console.info(`[relay] joins ${id} ${enabled ? 'on' : 'off'}`);
+  return enabled;
 }
 
-export async function setDeathRelay(chatId, on, title = '') {
-  const id = applyCache(deathRelay, chatId, on);
-  await persistRelay(id, { deathRelay: on }, title);
-  console.info(`[relay] deaths ${id} ${on ? 'on' : 'off'}`);
-  return on;
+export async function setDeathRelay(chatId, enabled, title = '') {
+  const id = updateRelayCache(deathRelay, chatId, enabled);
+  await saveRelayToDb(id, { deathRelay: enabled }, title);
+  console.info(`[relay] deaths ${id} ${enabled ? 'on' : 'off'}`);
+  return enabled;
 }
 
-export async function setAdvancementRelay(chatId, on, title = '') {
-  const id = applyCache(advancementRelay, chatId, on);
-  await persistRelay(id, { advancementRelay: on }, title);
-  console.info(`[relay] advancements ${id} ${on ? 'on' : 'off'}`);
-  return on;
+export async function setAdvancementRelay(chatId, enabled, title = '') {
+  const id = updateRelayCache(advancementRelay, chatId, enabled);
+  await saveRelayToDb(id, { advancementRelay: enabled }, title);
+  console.info(`[relay] advancements ${id} ${enabled ? 'on' : 'off'}`);
+  return enabled;
 }

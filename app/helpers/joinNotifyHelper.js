@@ -1,21 +1,25 @@
 import { listJoinRelay } from './chatRelayHelper.js';
 import { HTML, joinLeaveText } from './copyHelper.js';
 
-const recent = new Map();
+const recentEvents = new Map();
 const DEDUPE_MS = 20000;
 
-function take(type, name) {
-  const key = `${type}:${String(name).toLowerCase()}`;
+function pruneOldEvents() {
   const now = Date.now();
-  for (const [item, at] of recent) {
-    if (now - at > DEDUPE_MS) {
-      recent.delete(item);
+  for (const [key, seenAt] of recentEvents) {
+    if (now - seenAt > DEDUPE_MS) {
+      recentEvents.delete(key);
     }
   }
-  if (recent.has(key)) {
+}
+
+function isUnseenEvent(type, name) {
+  pruneOldEvents();
+  const key = `${type}:${String(name).toLowerCase()}`;
+  if (recentEvents.has(key)) {
     return false;
   }
-  recent.set(key, now);
+  recentEvents.set(key, Date.now());
   return true;
 }
 
@@ -24,22 +28,22 @@ export async function notifyJoinLeave(telegram, { joined = [], left = [], curren
     return;
   }
 
-  const chats = listJoinRelay();
-  if (!chats.length) {
+  const chatIds = listJoinRelay();
+  if (!chatIds.length) {
     console.info('[notify] skip join/leave: no chats with /joins on');
     return;
   }
 
-  const uniqueJoined = joined.filter((name) => take('join', name));
-  const uniqueLeft = left.filter((name) => take('leave', name));
+  const uniqueJoined = joined.filter((name) => isUnseenEvent('join', name));
+  const uniqueLeft = left.filter((name) => isUnseenEvent('leave', name));
   if (!uniqueJoined.length && !uniqueLeft.length) {
     console.info('[notify] skip join/leave: duplicate within 20s');
     return;
   }
 
   const text = joinLeaveText(uniqueJoined, uniqueLeft, current);
-  console.info(`[notify] send join=[${uniqueJoined.join(', ') || '—'}] leave=[${uniqueLeft.join(', ') || '—'}] to ${chats.join(', ')}`);
-  await Promise.all(chats.map((chatId) => (
+  console.info(`[notify] send join=[${uniqueJoined.join(', ') || '—'}] leave=[${uniqueLeft.join(', ') || '—'}] to ${chatIds.join(', ')}`);
+  await Promise.all(chatIds.map((chatId) => (
     telegram.sendMessage(chatId, text, HTML).catch((err) => {
       console.warn(`[notify] chat ${chatId}:`, err.message);
     })

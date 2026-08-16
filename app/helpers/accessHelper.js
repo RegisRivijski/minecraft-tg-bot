@@ -17,6 +17,7 @@ export function canUseBot(ctx) {
   if (isAllowedChat(ctx.chat?.id)) {
     return true;
   }
+  // Groups outside CHAT_IDS are ignored. Private chats: owners and viewers only.
   if (ctx.chat?.type !== 'private') {
     return false;
   }

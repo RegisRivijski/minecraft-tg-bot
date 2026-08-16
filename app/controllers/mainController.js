@@ -1,8 +1,8 @@
 import { isOwnerCtx } from '../helpers/accessHelper.js';
-import { HTML, helpText, loadingWorld } from '../helpers/copyHelper.js';
+import { HTML, helpText, startText } from '../helpers/copyHelper.js';
 
 export async function start(ctx) {
-  await ctx.reply(loadingWorld(), HTML);
+  await ctx.reply(startText(), HTML);
 }
 
 export async function help(ctx) {

@@ -3,7 +3,7 @@ import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames } from './
 
 export const HTML = { parse_mode: 'HTML' };
 
-export function loadingWorld() {
+export function startText() {
   return [
     '<i>Загрузка мира...</i>',
     '',
