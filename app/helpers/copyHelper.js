@@ -65,8 +65,19 @@ export function serverMenu({ list, daytime, weather, difficulty, tps }) {
     `<b>${escapeHtml(config.server.motd)}</b>`,
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
     'Режим игры: Выживание',
-    '',
   ];
+
+  if (difficulty) {
+    lines.push(`Сложность: <b>${escapeHtml(difficulty)}</b>`);
+  }
+  if (tps != null) {
+    const tpsText = describeTps(tps);
+    if (tpsText) {
+      lines.push(tpsText);
+    }
+  }
+
+  lines.push('');
 
   if (list.ok) {
     lines.push(`Игроки: ${list.online} / ${list.max}`);
@@ -78,15 +89,6 @@ export function serverMenu({ list, daytime, weather, difficulty, tps }) {
   lines.push('', `${daytime.icon} Время: <b>${daytime.label}</b>`);
   if (weather) {
     lines.push(`${weather.icon} Погода: <b>${escapeHtml(weather.label)}</b>`);
-  }
-  if (difficulty) {
-    lines.push(`Сложность: <b>${escapeHtml(difficulty)}</b>`);
-  }
-  if (tps != null) {
-    const tpsText = describeTps(tps);
-    if (tpsText) {
-      lines.push(tpsText);
-    }
   }
   return lines.join('\n');
 }
