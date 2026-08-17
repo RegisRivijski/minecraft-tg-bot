@@ -1,6 +1,7 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import {
   describeDaytime,
+  describeMoonPhase,
   describeWeather,
   normalizeDayTicks,
   parseDifficulty,
@@ -9,6 +10,7 @@ import {
   parseTps,
   parseWeatherCheck,
   parseWeatherQuery,
+  TICKS_PER_DAY,
 } from './minecraftHelper.js';
 
 async function queryDaytimeTicks() {
@@ -96,4 +98,21 @@ export async function fetchTime() {
   return {
     daytime: describeDaytime(await queryDaytimeTicks()),
   };
+}
+
+export async function queryTps() {
+  return parseTps(await rconSend('tps').catch(() => ''));
+}
+
+export async function fetchMoon() {
+  const dayTicks = parseTimeQuery(await rconSend('time query day').catch(() => ''));
+  if (dayTicks != null) {
+    return describeMoonPhase(dayTicks);
+  }
+
+  const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
+  if (gametime == null) {
+    return null;
+  }
+  return describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY));
 }

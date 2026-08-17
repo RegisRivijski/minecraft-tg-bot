@@ -1,6 +1,7 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import { parsePlayerList } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
+import { recordPlayerSnapshot } from './worldStatsHelper.js';
 import config from '../../config/default.js';
 
 export function startPlayerWatcher(telegram) {
@@ -25,6 +26,7 @@ export function startPlayerWatcher(telegram) {
       }
 
       const currentPlayers = new Set(current.players);
+      recordPlayerSnapshot(current.players);
 
       // First successful poll only stores a snapshot, so a bot restart
       // does not announce everyone who is already online.

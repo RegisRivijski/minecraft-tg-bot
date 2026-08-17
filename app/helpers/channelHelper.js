@@ -1,7 +1,20 @@
-import { CHANNEL_ID } from '../constants/access.js';
+import { createReadStream } from 'node:fs';
+import { access } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { CHANNEL_ID, CHAT_ID } from '../constants/access.js';
 import { HTML } from './copyHelper.js';
 
-let missingLogged = false;
+const WEATHER_IMAGES = {
+  clear: fileURLToPath(new URL('../assets/weather/clear.jpg', import.meta.url)),
+  rain: fileURLToPath(new URL('../assets/weather/rain.jpg', import.meta.url)),
+  thunder: fileURLToPath(new URL('../assets/weather/thunder.jpg', import.meta.url)),
+};
+
+let linkedChatId = null;
+let missingChannelLogged = false;
+let missingGroupLogged = false;
 
 export function getChannelId() {
   const id = Number(CHANNEL_ID);
@@ -11,21 +24,95 @@ export function getChannelId() {
   return id;
 }
 
-export async function postToChannel(telegram, text, extra = HTML) {
-  const chatId = getChannelId();
-  if (!chatId) {
-    if (!missingLogged) {
-      console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
-      missingLogged = true;
-    }
-    return;
+export function setLinkedChatId(id) {
+  const linked = Number(id);
+  linkedChatId = Number.isFinite(linked) && linked !== 0 ? linked : null;
+}
+
+export function getGroupChatId() {
+  const configured = Number(CHAT_ID);
+  if (Number.isFinite(configured) && configured !== 0) {
+    return configured;
   }
+  return linkedChatId;
+}
+
+async function weatherImagePath(key) {
+  const file = WEATHER_IMAGES[key];
+  if (!file) {
+    return null;
+  }
+  try {
+    await access(file);
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+async function sendText(telegram, chatId, text, extra, warnPrefix) {
   if (!text) {
     return;
   }
   try {
     await telegram.sendMessage(chatId, text, extra);
   } catch (err) {
-    console.warn(`[channel] ${chatId}:`, err.message);
+    console.warn(`${warnPrefix} ${chatId}:`, err.message);
   }
+}
+
+export async function postToChannel(telegram, text, extra = HTML) {
+  const chatId = getChannelId();
+  if (!chatId) {
+    if (!missingChannelLogged) {
+      console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
+      missingChannelLogged = true;
+    }
+    return;
+  }
+  await sendText(telegram, chatId, text, extra, '[channel]');
+}
+
+export async function postToGroup(telegram, text, extra = HTML) {
+  const chatId = getGroupChatId();
+  if (!chatId) {
+    if (!missingGroupLogged) {
+      console.warn('[group] CHAT_ID is empty — fill app/constants/access.js');
+      missingGroupLogged = true;
+    }
+    return;
+  }
+  await sendText(telegram, chatId, text, extra, '[group]');
+}
+
+export async function postPhotoToChannel(telegram, photoPath, caption, extra = HTML) {
+  const chatId = getChannelId();
+  if (!chatId) {
+    if (!missingChannelLogged) {
+      console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
+      missingChannelLogged = true;
+    }
+    return;
+  }
+  try {
+    await telegram.sendPhoto(
+      chatId,
+      { source: createReadStream(photoPath) },
+      { caption: caption || undefined, ...extra },
+    );
+  } catch (err) {
+    console.warn(`[channel] photo ${path.basename(photoPath)}:`, err.message);
+    if (caption) {
+      await postToChannel(telegram, caption, extra);
+    }
+  }
+}
+
+export async function postWeatherChange(telegram, caption, weatherKey) {
+  const image = await weatherImagePath(weatherKey);
+  if (image) {
+    await postPhotoToChannel(telegram, image, caption);
+    return;
+  }
+  await postToChannel(telegram, caption);
 }

@@ -141,6 +141,30 @@ export function describeDaytime(ticks) {
   };
 }
 
+const MOON_PHASES = [
+  { key: 'full', icon: '🌕', label: 'Полная луна' },
+  { key: 'waning_gibbous', icon: '🌖', label: 'Убывающая луна' },
+  { key: 'third_quarter', icon: '🌗', label: 'Последняя четверть' },
+  { key: 'waning_crescent', icon: '🌘', label: 'Старая луна' },
+  { key: 'new', icon: '🌑', label: 'Новолуние' },
+  { key: 'waxing_crescent', icon: '🌒', label: 'Молодая луна' },
+  { key: 'first_quarter', icon: '🌓', label: 'Первая четверть' },
+  { key: 'waxing_gibbous', icon: '🌔', label: 'Растущая луна' },
+];
+
+export function describeMoonPhase(dayNumber) {
+  if (dayNumber == null || Number.isNaN(Number(dayNumber))) {
+    return null;
+  }
+  const day = Math.floor(Number(dayNumber));
+  const phase = ((day % 8) + 8) % 8;
+  return { day, phase, ...MOON_PHASES[phase] };
+}
+
+export function isNotableMoonPhase(moon) {
+  return moon?.key === 'full' || moon?.key === 'new';
+}
+
 export function formatPlayerName(name) {
   return `<i><code>${escapeHtml(name)}</code></i>`;
 }
@@ -334,6 +358,51 @@ export function parseChatLine(raw) {
   return null;
 }
 
+const UUID_LINE = /^UUID of player (?<name>.+?) is (?<uuid>[0-9a-f-]{32,36})$/i;
+const NIGHT_SKIP_LINE = [
+  /^Skipping the night/i,
+  /^Sleeping through this night/i,
+  /^The night has been skipped/i,
+  /^Пропускаем ночь/i,
+  /^Ночь (будет )?пропущена/i,
+];
+const SERVER_STARTED = /^Done \(/;
+const SERVER_STOPPING = /^Stopping (the )?server/i;
+
+export function parsePlayerUuidLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload) {
+    return null;
+  }
+  const match = payload.match(UUID_LINE);
+  if (!match?.groups?.name || !match.groups.uuid) {
+    return null;
+  }
+  return { name: match.groups.name.trim(), uuid: match.groups.uuid.trim() };
+}
+
+export function parseNightSkipLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload || !NIGHT_SKIP_LINE.some((pattern) => pattern.test(payload))) {
+    return null;
+  }
+  return { type: 'night_skip', text: payload };
+}
+
+export function parseServerLifecycleLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload) {
+    return null;
+  }
+  if (SERVER_STARTED.test(payload)) {
+    return { type: 'server_up', text: payload };
+  }
+  if (SERVER_STOPPING.test(payload)) {
+    return { type: 'server_down', text: payload };
+  }
+  return null;
+}
+
 const EVENT_NOISE = [
   /^UUID of player /,
   / logged in with entity id /,
@@ -431,8 +500,43 @@ const DEATH_LINE = [
 
 const ENTITY_DUMP = /^(?:[A-Za-z0-9_:]+ )?(?<type>[A-Za-z0-9_:]+)\['[^']*'\/\d+, uuid='[^']+'/;
 const QUOTED_DEATH = / died, message: '(?<message>.*)'\s*$/;
-const NAMED_ENTITY = /^Named entity (?<type>\S+)/i;
+const NAMED_ENTITY = /^Named entity (?<type>[^\s\[']+)/i;
+const NAMED_ENTITY_NAME = /\['(?<name>[^']+)'/;
 const PLAYER_NICK = /^[A-Za-z0-9_]{1,16} /;
+
+const PET_TYPE_LABELS = {
+  wolf: 'волк',
+  cat: 'кошка',
+  ocelot: 'оцелот',
+  parrot: 'попугай',
+  horse: 'лошадь',
+  donkey: 'осёл',
+  mule: 'мул',
+  llama: 'лама',
+  trader_llama: 'лама',
+  fox: 'лиса',
+  allay: 'аллай',
+  axolotl: 'аксолотль',
+  camel: 'верблюд',
+  sniffer: 'нюхач',
+  iron_golem: 'железный голем',
+  snow_golem: 'снежный голем',
+  villager: 'житель',
+  wandering_trader: 'странствующий торговец',
+  frog: 'лягушка',
+  bee: 'пчела',
+  goat: 'коза',
+};
+
+export function petTypeLabel(entityType) {
+  const raw = String(entityType || '')
+    .replace(/^minecraft:/i, '')
+    .replace(/^entity\.minecraft\./i, '')
+    .replace(/^craft/i, '')
+    .replace(/^entity/i, '');
+  const key = raw.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+  return PET_TYPE_LABELS[key] || (key ? key.replace(/_/g, ' ') : null);
+}
 
 function isPlayerEntityType(type) {
   const key = String(type || '').toLowerCase();
@@ -441,6 +545,34 @@ function isPlayerEntityType(type) {
     || key === 'craftplayer'
     || key === 'minecraft:player'
     || key.endsWith(':player');
+}
+
+function namedEntityDeathText(payload) {
+  const quoted = payload.match(QUOTED_DEATH);
+  if (quoted?.groups?.message) {
+    return quoted.groups.message.trim();
+  }
+  const afterDied = payload.replace(/^Named entity \S+.+? died:\s*/i, '').trim();
+  return afterDied && afterDied !== payload ? afterDied : null;
+}
+
+export function parseNamedMobDeath(payload) {
+  const named = payload.match(NAMED_ENTITY);
+  if (!named || isPlayerEntityType(named.groups.type)) {
+    return null;
+  }
+  const text = namedEntityDeathText(payload);
+  if (!text) {
+    return null;
+  }
+  const name = payload.match(NAMED_ENTITY_NAME)?.groups?.name?.trim()
+    || text.split(' ', 1)[0];
+  return {
+    type: 'pet_death',
+    name,
+    entityType: named.groups.type,
+    text,
+  };
 }
 
 function unwrapEntityDeath(payload) {
@@ -452,11 +584,7 @@ function unwrapEntityDeath(payload) {
     if (!isPlayerEntityType(named.groups.type)) {
       return null;
     }
-    if (quoted?.groups?.message) {
-      return quoted.groups.message;
-    }
-    const afterDied = payload.replace(/^Named entity \S+.+? died:\s*/i, '').trim();
-    return afterDied && afterDied !== payload ? afterDied : null;
+    return namedEntityDeathText(payload);
   }
 
   if (dump) {
@@ -477,6 +605,11 @@ export function parseWorldEventLine(raw) {
   const stripped = stripLogPayload(raw);
   if (!stripped || EVENT_NOISE.some((pattern) => pattern.test(stripped))) {
     return null;
+  }
+
+  const pet = parseNamedMobDeath(stripped);
+  if (pet) {
+    return pet;
   }
 
   const payload = unwrapEntityDeath(stripped);

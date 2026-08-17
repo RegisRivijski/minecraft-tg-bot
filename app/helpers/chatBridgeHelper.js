@@ -1,19 +1,13 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
-import { CHAT_ID } from '../constants/access.js';
-import { getChannelId } from './channelHelper.js';
+import { getChannelId, getGroupChatId, setLinkedChatId } from './channelHelper.js';
 import { stripMcColor } from './minecraftHelper.js';
 
 const MAX_TEXT = 200;
 
-let linkedChatId = null;
 let skipLog = new Set();
 
 export function getRelayChatId() {
-  const configured = Number(CHAT_ID);
-  if (Number.isFinite(configured) && configured !== 0) {
-    return configured;
-  }
-  return linkedChatId;
+  return getGroupChatId();
 }
 
 export function isRelayChat(chatId) {
@@ -36,7 +30,7 @@ export async function resolveRelayChat(telegram) {
     const chat = await telegram.getChat(channelId);
     const linked = Number(chat.linked_chat_id);
     if (Number.isFinite(linked) && linked !== 0) {
-      linkedChatId = linked;
+      setLinkedChatId(linked);
       console.info(`[bridge] using linked discussion group ${linked}`);
       return linked;
     }
@@ -54,7 +48,7 @@ export async function warnIfBridgeCannotRead(telegram) {
     return;
   }
   if (getChannelId() && chatId === getChannelId()) {
-    console.warn('[bridge] CHAT_ID matches CHANNEL_ID — use a group, not the feed channel');
+    console.warn('[bridge] CHAT_ID matches CHANNEL_ID — use a group for chat, not the feed channel');
   }
   try {
     const me = await telegram.getMe();

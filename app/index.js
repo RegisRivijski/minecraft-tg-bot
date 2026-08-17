@@ -7,11 +7,12 @@ import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
 import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
-import { getChannelId } from './helpers/channelHelper.js';
+import { getChannelId, getGroupChatId } from './helpers/channelHelper.js';
 import { getRelayChatId, resolveRelayChat, warnIfBridgeCannotRead } from './helpers/chatBridgeHelper.js';
 import { startChannelWatchers } from './helpers/channelWatcherHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
+import { flushWorldStats, initWorldStats } from './helpers/worldStatsHelper.js';
 
 function buildTelegramApiRoot() {
   if (!config.telegramBotApi.host || !config.telegramBotApi.port) {
@@ -43,6 +44,7 @@ function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher, stopChannel
     stopPlayerWatcher();
     stopLogWatcher();
     stopChannelWatchers();
+    await flushWorldStats();
     await closeRcon();
     bot.stop(signal);
     process.exit(0);
@@ -62,6 +64,9 @@ export default async function main() {
   if (!getChannelId()) {
     console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
   }
+  if (!getGroupChatId()) {
+    console.warn('[group] CHAT_ID is empty — fill app/constants/access.js');
+  }
 
   const apiRoot = buildTelegramApiRoot();
   const bot = createBot(apiRoot);
@@ -75,6 +80,7 @@ export default async function main() {
 
   await resolveRelayChat(bot.telegram);
   await warnIfBridgeCannotRead(bot.telegram);
+  await initWorldStats();
 
   const stopPlayerWatcher = startPlayerWatcher(bot.telegram);
   const stopLogWatcher = startLogWatcher(bot.telegram);

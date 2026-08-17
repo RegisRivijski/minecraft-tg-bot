@@ -1,10 +1,26 @@
 import fs from 'fs/promises';
 
 import config from '../../config/default.js';
-import { postToChannel } from './channelHelper.js';
-import { chatRelayLine, worldEventLine } from './copyHelper.js';
-import { parseChatLine, parseJoinLeaveLine, parseWorldEventLine } from './minecraftHelper.js';
+import { postToChannel, postToGroup } from './channelHelper.js';
+import {
+  chatRelayLine,
+  firstJoinText,
+  nightSkipText,
+  petDeathLine,
+  serverStartedText,
+  serverStoppingText,
+  worldEventLine,
+} from './copyHelper.js';
+import {
+  parseChatLine,
+  parseJoinLeaveLine,
+  parseNightSkipLine,
+  parsePlayerUuidLine,
+  parseServerLifecycleLine,
+  parseWorldEventLine,
+} from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
+import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin } from './worldStatsHelper.js';
 
 const MAX_READ_BYTES = 512 * 1024;
 
@@ -24,12 +40,42 @@ function classifyLogLines(lines) {
   const joinLeaveEvents = [];
   const deaths = [];
   const advancements = [];
+  const petDeaths = [];
+  const firstJoins = [];
+  const nightSkips = [];
+  const serverLifecycle = [];
 
   for (const line of lines) {
+    const lifecycle = parseServerLifecycleLine(line);
+    if (lifecycle) {
+      console.info(`[log] parsed ${lifecycle.type}`);
+      serverLifecycle.push(lifecycle);
+      continue;
+    }
+
+    const nightSkip = parseNightSkipLine(line);
+    if (nightSkip) {
+      console.info('[log] parsed night_skip');
+      nightSkips.push(nightSkip);
+      continue;
+    }
+
+    const uuidLine = parsePlayerUuidLine(line);
+    if (uuidLine) {
+      console.info(`[log] parsed uuid: ${uuidLine.name}`);
+      if (notePlayerUuid(uuidLine.uuid, uuidLine.name)) {
+        firstJoins.push(uuidLine.name);
+      }
+      continue;
+    }
+
     const joinLeave = parseJoinLeaveLine(line);
     if (joinLeave) {
       console.info(`[log] parsed ${joinLeave.type}: ${joinLeave.name}`);
       joinLeaveEvents.push(joinLeave);
+      if (joinLeave.type === 'join') {
+        recordJoin(joinLeave.name);
+      }
       continue;
     }
 
@@ -43,31 +89,61 @@ function classifyLogLines(lines) {
     const event = parseWorldEventLine(line);
     if (event) {
       console.info(`[log] parsed ${event.type}: ${event.text.slice(0, 160)}`);
-      const formatted = worldEventLine(event);
       if (event.type === 'advancement') {
-        advancements.push(formatted);
+        recordAdvancement(event.name);
+        advancements.push(worldEventLine(event));
+      } else if (event.type === 'pet_death') {
+        petDeaths.push(petDeathLine(event));
       } else {
-        deaths.push(formatted);
+        recordDeath(event.name);
+        deaths.push(worldEventLine(event));
       }
     }
   }
 
   return {
-    chatMessages, joinLeaveEvents, deaths, advancements,
+    chatMessages,
+    joinLeaveEvents,
+    deaths,
+    advancements,
+    petDeaths,
+    firstJoins,
+    nightSkips,
+    serverLifecycle,
   };
 }
 
 async function forwardLogEvents(telegram, events) {
   const {
-    chatMessages, joinLeaveEvents, deaths, advancements,
+    chatMessages,
+    joinLeaveEvents,
+    deaths,
+    advancements,
+    petDeaths,
+    firstJoins,
+    nightSkips,
+    serverLifecycle,
   } = events;
   const joinedCount = joinLeaveEvents.filter((event) => event.type === 'join').length;
   const leftCount = joinLeaveEvents.filter((event) => event.type === 'leave').length;
 
-  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length}`);
+  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length}`);
 
-  await postToChannel(telegram, chatMessages.join('\n'));
+  for (const event of serverLifecycle) {
+    await postToChannel(
+      telegram,
+      event.type === 'server_up' ? serverStartedText() : serverStoppingText(),
+    );
+  }
+  if (firstJoins.length) {
+    await postToChannel(telegram, firstJoins.map(firstJoinText).join('\n'));
+  }
+  if (nightSkips.length) {
+    await postToChannel(telegram, nightSkipText());
+  }
+  await postToGroup(telegram, chatMessages.join('\n'));
   await postToChannel(telegram, deaths.join('\n'));
+  await postToChannel(telegram, petDeaths.join('\n'));
   await postToChannel(telegram, advancements.join('\n'));
   await notifyJoinLeave(telegram, { events: joinLeaveEvents });
 }

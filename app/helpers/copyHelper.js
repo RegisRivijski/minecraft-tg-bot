@@ -1,5 +1,5 @@
 import config from '../../config/default.js';
-import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames } from './minecraftHelper.js';
+import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames, petTypeLabel } from './minecraftHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
 
@@ -11,7 +11,7 @@ export function startText() {
     'Режим игры: Выживание',
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
     '',
-    'Лента сервера пишется в канал. Здесь — команды оператора, /help.',
+    'Чат мира дублируется в группу, события — в канал. Здесь — команды оператора, /help.',
   ].join('\n');
 }
 
@@ -210,6 +210,81 @@ export function onlineDigestText({ list, daytime, weather }) {
   }
   if (weather) {
     lines.push(`${weather.icon} ${escapeHtml(weather.label)}`);
+  }
+  return lines.join('\n');
+}
+
+export function firstJoinText(name) {
+  return `${formatPlayerName(name)} впервые в этом мире`;
+}
+
+export function nightSkipText() {
+  return '🌙 Ночь пропущена — все легли спать.';
+}
+
+export function petDeathLine(event) {
+  const text = worldEventLine(event);
+  const kind = petTypeLabel(event.entityType);
+  return kind ? `${text} · ${escapeHtml(kind)}` : text;
+}
+
+export function tpsAlertText(tps) {
+  return describeTps(tps) || `Сервер лагает (${Number(tps).toFixed(1)} TPS)`;
+}
+
+export function tpsRecoveredText(tps) {
+  const detail = tps != null && !Number.isNaN(Number(tps))
+    ? ` (${Number(tps).toFixed(1)} TPS)`
+    : '';
+  return `Сервер снова работает плавно${detail}`;
+}
+
+export function serverStartedText() {
+  return 'Мир запущен.';
+}
+
+export function serverStoppingText() {
+  return 'Сервер останавливается.';
+}
+
+export function moonPhaseText(moon) {
+  if (!moon) {
+    return '';
+  }
+  return `${moon.icon} ${escapeHtml(moon.label)}`;
+}
+
+export function emptyWorldText({ sinceLabel, hours }) {
+  const duration = hours === 1 ? '1 ч' : `${hours} ч`;
+  return `Мир пуст с ${escapeHtml(sinceLabel)} (уже ${duration}).`;
+}
+
+export function dailyRecapText({ dateLabel, players, deaths, advancements, moon }) {
+  const lines = [`<b>Итоги дня</b> · ${escapeHtml(dateLabel)}`];
+  lines.push(players.length
+    ? `Заходили: ${formatPlayerNames(players)}`
+    : 'Сегодня никто не заходил.');
+  lines.push(`Смертей: <b>${deaths}</b>`);
+  lines.push(`Достижений: <b>${advancements}</b>`);
+  if (moon?.label) {
+    lines.push('', `${moon.icon} ${escapeHtml(moon.label)}`);
+  }
+  return lines.join('\n');
+}
+
+export function weeklyRecapText({ playTop, deathTop }) {
+  const lines = ['<b>Итоги недели</b>'];
+  if (playTop.length) {
+    lines.push('', 'Онлайн:');
+    playTop.forEach((row, index) => {
+      lines.push(`${index + 1}. ${formatPlayerName(row.name)} — ${escapeHtml(row.duration)}`);
+    });
+  }
+  if (deathTop.length) {
+    lines.push('', 'Смерти:');
+    deathTop.forEach((row, index) => {
+      lines.push(`${index + 1}. ${formatPlayerName(row.name)} — ${row.count}`);
+    });
   }
   return lines.join('\n');
 }

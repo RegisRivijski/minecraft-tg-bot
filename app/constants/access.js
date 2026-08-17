@@ -2,15 +2,17 @@
  * OWNER_IDS — Telegram user ids. Only these people can use the bot in DMs
  * and run operator commands.
  *
- * CHANNEL_ID — channel that receives the world feed: join/leave, in-game chat,
- * deaths, advancements, weather changes, and an hourly online snapshot
- * (when anyone is on the server). The bot must be a channel admin
- * with permission to post messages.
+ * CHANNEL_ID — channel that receives world events: join/leave, first join,
+ * deaths, named mob deaths, advancements, weather, moon, night skip,
+ * TPS alerts, server start/stop, empty-world notice, evening recap,
+ * weekly stats, and an hourly online snapshot (when anyone is on the
+ * server). The bot must be a channel admin with permission to post.
  *
- * CHAT_ID — group whose messages are forwarded into Minecraft chat
- * (`Name: text`). The bot must be a group admin (or privacy mode must
- * be disabled in BotFather: /setprivacy → Disable). After changing
- * privacy, remove the bot from the group and add it again.
+ * CHAT_ID — group for live Minecraft chat both ways: in-game chat is
+ * posted here, and group messages go into the world (`Name: text`).
+ * The bot must be a group admin (or privacy mode must be disabled in
+ * BotFather: /setprivacy → Disable). After changing privacy, remove
+ * the bot from the group and add it again.
  *
  * To get an id, add the bot to the channel/group — logs will show
  * `[channel] bot is administrator in channel|supergroup -100…`.
