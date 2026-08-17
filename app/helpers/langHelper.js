@@ -21,15 +21,21 @@ advancementByTitle.set(normalizeTitle("Who's the Pillager Now"), advancementByTi
 advancementByTitle.set(normalizeTitle('Minecraft: Trial Edition'), advancementByTitle.get(normalizeTitle('Minecraft: Trial(s) Edition')));
 advancementByTitle.set(normalizeTitle('мыш (кродёться)'), advancementByTitle.get(normalizeTitle('мыш (кродеться)')));
 
+function wikiUrl(title) {
+  const slug = String(title || '')
+    .trim()
+    .replace(/ /g, '_');
+  return `https://ru.minecraft.wiki/w/${encodeURIComponent(slug)}`;
+}
+
 export function resolveAdvancement(title) {
   const raw = String(title || '').trim();
   const found = advancementByTitle.get(normalizeTitle(raw));
   const ru = found?.ru || raw;
-  const query = found?.ru || raw;
   return {
     id: found?.id || null,
     ru,
-    url: `https://ru.minecraft.wiki/w/index.php?go=Go&search=${encodeURIComponent(query)}`,
+    url: wikiUrl(ru),
   };
 }
 
