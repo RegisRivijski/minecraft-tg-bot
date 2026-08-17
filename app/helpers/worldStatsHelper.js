@@ -166,12 +166,8 @@ async function readJson(file) {
 }
 
 function parseMoonPosted(raw) {
-  const day = Number(raw?.day);
   const key = String(raw?.key || '');
-  if (!Number.isFinite(day) || !key) {
-    return null;
-  }
-  return { day, key };
+  return key ? { key } : null;
 }
 
 function mergeLoaded(raw) {
@@ -394,16 +390,17 @@ export function markOnlineDigestPosted(parts = zonedParts()) {
   scheduleSave();
 }
 
-export function shouldPostMoonPhase(moon) {
-  if (moon?.day == null || !moon.key) {
+export function takeMoonAnnouncement(moon, notable) {
+  if (!moon?.key) {
     return false;
   }
-  return state.lastMoonPosted?.day !== moon.day || state.lastMoonPosted?.key !== moon.key;
-}
-
-export function markMoonPhasePosted(moon) {
-  state.lastMoonPosted = { day: moon.day, key: moon.key };
+  const previous = state.lastMoonPosted?.key;
+  if (previous === moon.key) {
+    return false;
+  }
+  state.lastMoonPosted = { key: moon.key };
   scheduleSave();
+  return previous != null && Boolean(notable);
 }
 
 export function takeEmptyWorldAnnouncement(now = Date.now()) {

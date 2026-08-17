@@ -15,12 +15,11 @@ import {
 import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
 import { fetchMoon, fetchTime, queryPresent, queryTps, queryWeather } from './serverHelper.js';
 import {
-  markMoonPhasePosted,
   markOnlineDigestPosted,
-  shouldPostMoonPhase,
   shouldPostOnlineDigest,
   takeDailyRecap,
   takeEmptyWorldAnnouncement,
+  takeMoonAnnouncement,
   takeWeeklyRecap,
   zonedParts,
 } from './worldStatsHelper.js';
@@ -196,7 +195,7 @@ function startMoonWatcher(telegram) {
     inFlight = true;
     try {
       const moon = await fetchMoon();
-      if (!isNotableMoonPhase(moon) || !shouldPostMoonPhase(moon)) {
+      if (!takeMoonAnnouncement(moon, isNotableMoonPhase(moon))) {
         return;
       }
       const [{ daytime }, listRaw] = await Promise.all([
@@ -209,7 +208,6 @@ function startMoonWatcher(telegram) {
         moonPhaseText(moon, daytime, parsePlayerList(listRaw)),
         moon.key,
       );
-      markMoonPhasePosted(moon);
     } catch (err) {
       console.warn('[moon]', err.message);
     } finally {
