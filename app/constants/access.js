@@ -8,8 +8,9 @@
  * with permission to post messages.
  *
  * CHAT_ID — group whose messages are forwarded into Minecraft chat
- * (`Name: text`). The bot must see group messages: make it a group admin
- * or disable privacy mode in BotFather (/setprivacy → Disable).
+ * (`Name: text`). The bot must be a group admin (or privacy mode must
+ * be disabled in BotFather: /setprivacy → Disable). After changing
+ * privacy, remove the bot from the group and add it again.
  *
  * To get an id, add the bot to the channel/group — logs will show
  * `[channel] bot is administrator in channel|supergroup -100…`.
@@ -21,4 +22,4 @@ export const OWNER_IDS = [
 
 export const CHANNEL_ID = -1003751386514;
 
-export const CHAT_ID = 0;
+export const CHAT_ID = -1004330943744;

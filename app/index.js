@@ -8,7 +8,7 @@ import { registerRoutes } from './routes/index.js';
 import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
 import { getChannelId } from './helpers/channelHelper.js';
-import { getRelayChatId, warnIfRelayChatMissing } from './helpers/chatBridgeHelper.js';
+import { getRelayChatId, resolveRelayChat, warnIfBridgeCannotRead } from './helpers/chatBridgeHelper.js';
 import { startChannelWatchers } from './helpers/channelWatcherHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
@@ -62,7 +62,6 @@ export default async function main() {
   if (!getChannelId()) {
     console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
   }
-  warnIfRelayChatMissing();
 
   const apiRoot = buildTelegramApiRoot();
   const bot = createBot(apiRoot);
@@ -73,6 +72,9 @@ export default async function main() {
   bot.catch((error) => {
     console.error('[telegraf]', error.code || error.message);
   });
+
+  await resolveRelayChat(bot.telegram);
+  await warnIfBridgeCannotRead(bot.telegram);
 
   const stopPlayerWatcher = startPlayerWatcher(bot.telegram);
   const stopLogWatcher = startLogWatcher(bot.telegram);

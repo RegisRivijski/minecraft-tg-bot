@@ -1,9 +1,17 @@
 import { canUseBot } from '../helpers/accessHelper.js';
-import { isRelayChat } from '../helpers/chatBridgeHelper.js';
+import { isRelayChat, logForeignGroup } from '../helpers/chatBridgeHelper.js';
 
 function isCommand(ctx) {
-  const text = ctx.message?.text || '';
+  const text = ctx.message?.text || ctx.channelPost?.text || '';
   return text.startsWith('/');
+}
+
+function isGroupMessage(ctx) {
+  const type = ctx.chat?.type;
+  if (!['group', 'supergroup'].includes(type)) {
+    return false;
+  }
+  return Boolean(ctx.message);
 }
 
 export default async function allowedChat(ctx, next) {
@@ -13,7 +21,10 @@ export default async function allowedChat(ctx, next) {
   if (canUseBot(ctx)) {
     return next();
   }
-  if (isRelayChat(ctx.chat?.id) && ctx.message && !isCommand(ctx)) {
-    return next();
+  if (isGroupMessage(ctx) && !isCommand(ctx)) {
+    if (isRelayChat(ctx.chat.id)) {
+      return next();
+    }
+    logForeignGroup(ctx);
   }
 }

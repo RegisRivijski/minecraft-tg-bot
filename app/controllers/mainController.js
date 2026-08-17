@@ -16,4 +16,7 @@ export function onMyChatMember(ctx) {
   }
   const title = chat.title || chat.username || '';
   console.info(`[channel] bot is ${member.status} in ${chat.type} ${chat.id}${title ? ` «${title}»` : ''}`);
+  if (['group', 'supergroup'].includes(chat.type) && ['member', 'administrator', 'creator'].includes(member.status)) {
+    console.info(`[bridge] to relay this group, set CHAT_ID to ${chat.id}`);
+  }
 }
