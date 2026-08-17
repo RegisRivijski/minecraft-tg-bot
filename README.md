@@ -1,47 +1,48 @@
 # Minecraft Telegram Bot
 
-Telegram-бот для SMP-сервера **artur-petrov**. В личке — консоль оператора. В канал пишет ленту мира: вход и выход, чат, смерти, достижения, смену погоды и снимок онлайна раз в час.
+Telegram bot for the **artur-petrov** SMP. DMs are the operator console. The channel gets a live world feed: join/leave, chat, deaths, advancements, weather changes, and an hourly online snapshot.
 
 ## Features
 
-- Личка доступна только владельцу из `OWNER_IDS`. Остальным бот не отвечает
-- Статус мира в личке: игроки, время суток, сложность, TPS
-- Лента в один канал из `CHANNEL_ID`: join/leave, чат мира, смерти, достижения
-- Смена погоды в канал
-- Раз в час — кто онлайн, если на сервере есть игроки
-- Команды оператора: время, погода, whitelist, `/say`, произвольный RCON
+- DMs are available only to `OWNER_IDS`. Everyone else is ignored
+- World status in DMs: players, time of day, difficulty, TPS
+- Feed in one `CHANNEL_ID` channel: join/leave, in-game chat, deaths, advancements
+- Messages from the `CHAT_ID` group go into Minecraft chat (`Name: text`)
+- Weather changes posted to the channel
+- Once an hour — who is online, if anyone is on the server
+- Operator commands: time, weather, whitelist, `/say`, raw RCON
 
-## Структура
+## Structure
 
-Точка входа тонкая, логика лежит в `app/`.
+Thin entrypoint; logic lives in `app/`.
 
 ```
-index.js                 # запуск: import app from './app/index.js'
+index.js                 # start: import app from './app/index.js'
 app/
-  index.js               # bootstrap Telegraf, RCON, вотчеры
-  routes/                # привязка команд бота к контроллерам
-  controllers/           # обработчики команд
+  index.js               # bootstrap Telegraf, RCON, watchers
+  routes/                # bind bot commands to controllers
+  controllers/           # command handlers
     mainController.js    # /start, /help
     serverController.js  # /server, /list
     worldController.js   # /time, /weather, /seed, /difficulty
     adminController.js   # /say, /whitelist, /rcon
-  helpers/               # бизнес-логика, лента канала, тексты
-  middlewares/           # ACL и обработка ошибок
+  helpers/               # business logic, channel feed, copy
+  middlewares/           # ACL and error handling
   classes/
-    ServiceSingletons/   # подключение RCON
-  constants/             # OWNER_IDS, CHANNEL_ID
+    ServiceSingletons/   # RCON connection
+  constants/             # OWNER_IDS, CHANNEL_ID, CHAT_ID
 config/
-  default.js             # конфиг из переменных окружения
+  default.js             # config from environment variables
 ```
 
-Как читать код:
+How to read the code:
 
-1. Команда пришла в Telegram → `app/routes/index.js`
-2. Роут вызывает функцию из `controllers/`
-3. Контроллер берёт данные из `helpers/` и RCON, отвечает текстом из `copyHelper.js`
-4. Фоновые задачи (игроки, лог, погода, дайджест) стартуют в `app/index.js`
+1. A Telegram command arrives → `app/routes/index.js`
+2. The route calls a function in `controllers/`
+3. The controller reads data from `helpers/` and RCON, replies with copy from `copyHelper.js`
+4. Background jobs (players, log, weather, digest) start in `app/index.js`
 
-Владелец и канал прописываются в `app/constants/access.js`.
+Owner, channel, and bridge chat are set in `app/constants/access.js`.
 
 ## Installation
 
@@ -58,11 +59,12 @@ cd minecraft-tg-bot
 npm install
 ```
 
-3. Заполни `OWNER_IDS` и `CHANNEL_ID` в `app/constants/access.js`.
-   Свой id — напиши боту `/start` в личке (если id уже в `OWNER_IDS`, бот ответит).
-   Id канала — добавь бота в канал админом с правом публиковать сообщения; в логах появится `bot is administrator in channel -100…`.
+3. Fill in `OWNER_IDS`, `CHANNEL_ID`, and `CHAT_ID` in `app/constants/access.js`.
+   Your id — send `/start` to the bot in DMs (it replies if your id is already in `OWNER_IDS`).
+   Channel/group id — add the bot as admin; logs will show `bot is administrator in channel|supergroup -100…`.
+   For the bot to see regular group messages, disable privacy mode in BotFather (`/setprivacy` → Disable) or make the bot a group admin.
 
-4. Задай переменные окружения (процесс запуска: Docker, systemd, оболочка). Проект не читает `.env`.
+4. Set environment variables (Docker, systemd, or the shell). This project does not load a `.env` file.
 
 ```dotenv
 MINECRAFT_TG_BOT_API_TOKEN=your_telegram_bot_token
@@ -85,7 +87,7 @@ TELEGRAM_BOT_API_HOST=127.0.0.1
 TELEGRAM_BOT_API_PORT=8081
 ```
 
-`TELEGRAM_BOT_API_*` нужны только если бот ходит на локальный [Telegram Bot API](https://github.com/tdlib/telegram-bot-api), а не на `api.telegram.org`.
+`TELEGRAM_BOT_API_*` are only needed if the bot talks to a local [Telegram Bot API](https://github.com/tdlib/telegram-bot-api) instead of `api.telegram.org`.
 
 5. Start the bot:
 
@@ -93,36 +95,36 @@ TELEGRAM_BOT_API_PORT=8081
 npm start
 ```
 
-Для разработки: `npm run dev` (node --watch).
+For development: `npm run dev` (node --watch).
 
-Через Docker переменные передаются в контейнер, `Dockerfile` стартует `npm start`.
+With Docker, pass the same variables into the container; `Dockerfile` runs `npm start`.
 
 ## Commands
 
-Команды работают только в личке с владельцем.
+Commands work only in DMs with the owner.
 
-| Команда | Описание |
+| Command | Description |
 | --- | --- |
-| `/start` | Приветствие и адрес сервера |
-| `/help` | Список команд |
-| `/server` | Статус мира |
-| `/list` | Игроки на сервере |
-| `/time` | Время суток |
-| `/time day\|night\|noon\|midnight` | Установить время |
-| `/seed` | Зерно мира |
-| `/difficulty` | Сложность |
-| `/difficulty peaceful\|easy\|normal\|hard` | Установить сложность |
-| `/say <текст>` | Сообщение в чат мира |
-| `/weather` | Текущая погода |
-| `/weather clear\|rain\|thunder` | Установить погоду |
-| `/whitelist add\|remove\|list <ник>` | Вайтлист |
-| `/rcon <команда>` | Произвольная консольная команда |
+| `/start` | Greeting and server address |
+| `/help` | Command list |
+| `/server` | World status |
+| `/list` | Players online |
+| `/time` | Time of day |
+| `/time day\|night\|noon\|midnight` | Set time |
+| `/seed` | World seed |
+| `/difficulty` | Difficulty |
+| `/difficulty peaceful\|easy\|normal\|hard` | Set difficulty |
+| `/say <text>` | Message to in-game chat |
+| `/weather` | Current weather |
+| `/weather clear\|rain\|thunder` | Set weather |
+| `/whitelist add\|remove\|list <nick>` | Whitelist |
+| `/rcon <command>` | Raw console command |
 
 ## Technologies Used
 
 - Node.js — runtime
-- Telegraf — Telegram-бот
-- rcon-client — команды Minecraft-сервера
+- Telegraf — Telegram bot
+- rcon-client — Minecraft server commands
 
 ## Contribution
 

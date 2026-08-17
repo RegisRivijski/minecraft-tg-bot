@@ -1,13 +1,14 @@
 import { Telegraf } from 'telegraf';
 
 import config from '../config/default.js';
-import { CHANNEL_ID, OWNER_IDS } from './constants/access.js';
+import { CHANNEL_ID, CHAT_ID, OWNER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
 import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
 import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
 import { getChannelId } from './helpers/channelHelper.js';
+import { getRelayChatId, warnIfRelayChatMissing } from './helpers/chatBridgeHelper.js';
 import { startChannelWatchers } from './helpers/channelWatcherHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
@@ -31,6 +32,7 @@ function printStartupTable(apiRoot) {
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
     Channel: getChannelId() || CHANNEL_ID || '—',
+    Chat: getRelayChatId() || CHAT_ID || '—',
     Log: config.server.logPath,
     LocalApi: Boolean(apiRoot),
   });
@@ -60,6 +62,7 @@ export default async function main() {
   if (!getChannelId()) {
     console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
   }
+  warnIfRelayChatMissing();
 
   const apiRoot = buildTelegramApiRoot();
   const bot = createBot(apiRoot);
