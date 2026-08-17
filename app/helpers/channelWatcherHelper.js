@@ -1,6 +1,6 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import config from '../../config/default.js';
-import { postToChannel, postWeatherChange } from './channelHelper.js';
+import { postMoonChange, postToChannel, postWeatherChange } from './channelHelper.js';
 import {
   dailyRecapText,
   emptyWorldText,
@@ -15,6 +15,10 @@ import {
 import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
 import { fetchMoon, fetchTime, queryPresent, queryTps, queryWeather } from './serverHelper.js';
 import {
+  markMoonPhasePosted,
+  markOnlineDigestPosted,
+  shouldPostMoonPhase,
+  shouldPostOnlineDigest,
   takeDailyRecap,
   takeEmptyWorldAnnouncement,
   takeWeeklyRecap,
@@ -62,9 +66,16 @@ function startWeatherWatcher(telegram) {
       }
       const previous = describeWeather(previousKey);
       previousKey = weather.key;
-      const { daytime } = await fetchTime();
+      const [{ daytime }, listRaw] = await Promise.all([
+        fetchTime(),
+        rconSend('list'),
+      ]);
       console.info(`[weather] ${previous?.key || '—'} → ${weather.key}`);
-      await postWeatherChange(telegram, weatherChangedText(previous, weather, daytime), weather.key);
+      await postWeatherChange(
+        telegram,
+        weatherChangedText(previous, weather, daytime, parsePlayerList(listRaw)),
+        weather.key,
+      );
     } catch (err) {
       console.warn('[weather]', err.message);
     } finally {
@@ -89,7 +100,7 @@ function startOnlineDigest(telegram) {
   let inFlight = false;
 
   const postDigest = async () => {
-    if (inFlight) {
+    if (inFlight || !shouldPostOnlineDigest()) {
       return;
     }
     inFlight = true;
@@ -105,6 +116,7 @@ function startOnlineDigest(telegram) {
       }
       console.info(`[digest] ${list.online} online`);
       await postToChannel(telegram, onlineDigestText({ list, daytime, weather }));
+      markOnlineDigestPosted();
     } catch (err) {
       console.warn('[digest]', err.message);
     } finally {
@@ -112,8 +124,9 @@ function startOnlineDigest(telegram) {
     }
   };
 
-  timer = setInterval(postDigest, config.server.digestIntervalMs);
-  console.info(`[digest] every ${config.server.digestIntervalMs}ms if players are online`);
+  timer = setInterval(postDigest, config.server.recapPollMs);
+  postDigest();
+  console.info(`[digest] once per clock hour (${config.server.timeZone}), persists across restarts`);
 
   return () => {
     if (timer) {
@@ -173,7 +186,6 @@ function startTpsWatcher(telegram) {
 }
 
 function startMoonWatcher(telegram) {
-  let previousKey = null;
   let timer = null;
   let inFlight = false;
 
@@ -184,22 +196,20 @@ function startMoonWatcher(telegram) {
     inFlight = true;
     try {
       const moon = await fetchMoon();
-      if (!moon?.key) {
+      if (!isNotableMoonPhase(moon) || !shouldPostMoonPhase(moon)) {
         return;
       }
-      if (previousKey == null) {
-        previousKey = moon.key;
-        return;
-      }
-      if (previousKey === moon.key) {
-        return;
-      }
-      previousKey = moon.key;
-      if (!isNotableMoonPhase(moon)) {
-        return;
-      }
-      console.info(`[moon] ${moon.key}`);
-      await postToChannel(telegram, moonPhaseText(moon));
+      const [{ daytime }, listRaw] = await Promise.all([
+        fetchTime(),
+        rconSend('list'),
+      ]);
+      console.info(`[moon] ${moon.key} day=${moon.day}`);
+      await postMoonChange(
+        telegram,
+        moonPhaseText(moon, daytime, parsePlayerList(listRaw)),
+        moon.key,
+      );
+      markMoonPhasePosted(moon);
     } catch (err) {
       console.warn('[moon]', err.message);
     } finally {

@@ -12,6 +12,11 @@ const WEATHER_IMAGES = {
   thunder: fileURLToPath(new URL('../assets/weather/thunder.jpg', import.meta.url)),
 };
 
+const MOON_IMAGES = {
+  full: fileURLToPath(new URL('../assets/moon/full.jpg', import.meta.url)),
+  new: fileURLToPath(new URL('../assets/moon/new.jpg', import.meta.url)),
+};
+
 let linkedChatId = null;
 let missingChannelLogged = false;
 let missingGroupLogged = false;
@@ -37,8 +42,8 @@ export function getGroupChatId() {
   return linkedChatId;
 }
 
-async function weatherImagePath(key) {
-  const file = WEATHER_IMAGES[key];
+async function imagePath(map, key) {
+  const file = map[key];
   if (!file) {
     return null;
   }
@@ -48,6 +53,14 @@ async function weatherImagePath(key) {
   } catch {
     return null;
   }
+}
+
+function weatherImagePath(key) {
+  return imagePath(WEATHER_IMAGES, key);
+}
+
+function moonImagePath(key) {
+  return imagePath(MOON_IMAGES, key);
 }
 
 async function sendText(telegram, chatId, text, extra, warnPrefix) {
@@ -110,6 +123,15 @@ export async function postPhotoToChannel(telegram, photoPath, caption, extra = H
 
 export async function postWeatherChange(telegram, caption, weatherKey) {
   const image = await weatherImagePath(weatherKey);
+  if (image) {
+    await postPhotoToChannel(telegram, image, caption);
+    return;
+  }
+  await postToChannel(telegram, caption);
+}
+
+export async function postMoonChange(telegram, caption, moonKey) {
+  const image = await moonImagePath(moonKey);
   if (image) {
     await postPhotoToChannel(telegram, image, caption);
     return;

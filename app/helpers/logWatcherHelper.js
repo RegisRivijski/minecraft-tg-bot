@@ -11,6 +11,7 @@ import {
   serverStoppingText,
   worldEventLine,
   advancementLine,
+  HTML_NO_PREVIEW,
 } from './copyHelper.js';
 import {
   parseChatLine,
@@ -146,7 +147,7 @@ async function forwardLogEvents(telegram, events) {
   await postToGroup(telegram, chatMessages.join('\n'));
   await postToChannel(telegram, deaths.join('\n'));
   await postToChannel(telegram, petDeaths.join('\n'));
-  await postToChannel(telegram, advancements.join('\n'));
+  await postToChannel(telegram, advancements.join('\n'), HTML_NO_PREVIEW);
   await notifyJoinLeave(telegram, { events: joinLeaveEvents });
 }
 

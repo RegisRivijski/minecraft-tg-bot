@@ -3,6 +3,11 @@ import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames, petTypeLa
 import { resolveAdvancement } from './langHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
+export const HTML_NO_PREVIEW = {
+  parse_mode: 'HTML',
+  disable_web_page_preview: true,
+  link_preview_options: { is_disabled: true },
+};
 
 export function startText() {
   return [
@@ -104,17 +109,36 @@ export function weatherSetDone(label) {
   return `Погода изменена: ${label}`;
 }
 
-export function weatherChangedText(previous, current, daytime) {
+export function onlinePlayersText(list) {
+  if (!list?.ok) {
+    return '';
+  }
+  if (!list.players.length) {
+    return 'На сервере нет игроков.';
+  }
+  return `Игроки (${list.online}/${list.max}): ${formatPlayerNames(list.players)}`;
+}
+
+function appendWorldContext(lines, daytime, list) {
+  if (daytime?.label) {
+    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
+  }
+  const players = onlinePlayersText(list);
+  if (players) {
+    lines.push('', players);
+  }
+}
+
+export function weatherChangedText(previous, current, daytime, list) {
   if (!current) {
     return '';
   }
   const weatherLine = !previous || previous.key === current.key
     ? `${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`
     : `${previous.icon} → ${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
-  if (!daytime?.label) {
-    return weatherLine;
-  }
-  return `${weatherLine}\n${daytime.icon} ${escapeHtml(daytime.label)}`;
+  const lines = [weatherLine];
+  appendWorldContext(lines, daytime, list);
+  return lines.join('\n');
 }
 
 export function seedText(seed) {
@@ -264,11 +288,13 @@ export function serverStoppingText() {
   return 'Сервер останавливается.';
 }
 
-export function moonPhaseText(moon) {
+export function moonPhaseText(moon, daytime, list) {
   if (!moon) {
     return '';
   }
-  return `${moon.icon} ${escapeHtml(moon.label)}`;
+  const lines = [`${moon.icon} ${escapeHtml(moon.label)}`];
+  appendWorldContext(lines, daytime, list);
+  return lines.join('\n');
 }
 
 export function emptyWorldText({ sinceLabel, hours }) {

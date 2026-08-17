@@ -35,6 +35,8 @@ export default {
     logPath,
     logPollMs: Number(process.env.MINECRAFT_LOG_POLL_MS || 1000),
     weatherPollMs: Number(process.env.MINECRAFT_WEATHER_POLL_MS || 30000),
+    // Kept for existing env files. The digest itself is clock-hour aligned
+    // in `timeZone` and persisted so a restart does not reset the hour.
     digestIntervalMs: Number(process.env.MINECRAFT_DIGEST_INTERVAL_MS || 3600000),
     tpsPollMs: Number(process.env.MINECRAFT_TPS_POLL_MS || 15000),
     tpsAlertBelow: Number(process.env.MINECRAFT_TPS_ALERT_BELOW || 15),

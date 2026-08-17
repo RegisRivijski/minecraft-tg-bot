@@ -46,6 +46,10 @@ function dateKey(parts = zonedParts()) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+function digestHourKey(parts = zonedParts()) {
+  return `${dateKey(parts)}-${parts.hour}`;
+}
+
 function isoWeekKey(parts = zonedParts()) {
   const utc = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
   const day = utc.getUTCDay() || 7;
@@ -76,6 +80,8 @@ function blankState() {
     empty: { since: null, notifiedAt: null },
     lastDailyPosted: null,
     lastWeeklyPosted: null,
+    lastDigestPosted: null,
+    lastMoonPosted: null,
     sessions: {},
   };
 }
@@ -141,6 +147,8 @@ async function writeStats() {
     empty: state.empty,
     lastDailyPosted: state.lastDailyPosted,
     lastWeeklyPosted: state.lastWeeklyPosted,
+    lastDigestPosted: state.lastDigestPosted,
+    lastMoonPosted: state.lastMoonPosted,
   };
   await fs.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
   await fs.rename(tmp, file);
@@ -155,6 +163,15 @@ async function readJson(file) {
     }
     return null;
   }
+}
+
+function parseMoonPosted(raw) {
+  const day = Number(raw?.day);
+  const key = String(raw?.key || '');
+  if (!Number.isFinite(day) || !key) {
+    return null;
+  }
+  return { day, key };
 }
 
 function mergeLoaded(raw) {
@@ -184,6 +201,8 @@ function mergeLoaded(raw) {
   }
   next.lastDailyPosted = raw.lastDailyPosted || null;
   next.lastWeeklyPosted = raw.lastWeeklyPosted || null;
+  next.lastDigestPosted = raw.lastDigestPosted || null;
+  next.lastMoonPosted = parseMoonPosted(raw.lastMoonPosted);
   next.sessions = {};
   return next;
 }
@@ -363,6 +382,28 @@ function topEntries(map, limit = TOP_LIMIT) {
     .filter(([, value]) => Number(value) > 0)
     .sort((left, right) => Number(right[1]) - Number(left[1]) || left[0].localeCompare(right[0]))
     .slice(0, limit);
+}
+
+export function shouldPostOnlineDigest(parts = zonedParts()) {
+  rotateBucketsIfNeeded();
+  return state.lastDigestPosted !== digestHourKey(parts);
+}
+
+export function markOnlineDigestPosted(parts = zonedParts()) {
+  state.lastDigestPosted = digestHourKey(parts);
+  scheduleSave();
+}
+
+export function shouldPostMoonPhase(moon) {
+  if (moon?.day == null || !moon.key) {
+    return false;
+  }
+  return state.lastMoonPosted?.day !== moon.day || state.lastMoonPosted?.key !== moon.key;
+}
+
+export function markMoonPhasePosted(moon) {
+  state.lastMoonPosted = { day: moon.day, key: moon.key };
+  scheduleSave();
 }
 
 export function takeEmptyWorldAnnouncement(now = Date.now()) {
