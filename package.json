@@ -1,7 +1,7 @@
 {
   "name": "minecraft-tg-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for artur-petrov Minecraft SMP (RCON status, join/leave, admin commands)",
+  "description": "Telegram bot for artur-petrov Minecraft SMP: owner DM console and a channel feed",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,6 @@
   "author": "Artur Petrov",
   "license": "ISC",
   "dependencies": {
-    "mongoose": "^8.24.3",
     "rcon-client": "^4.2.5",
     "telegraf": "^4.16.3"
   }

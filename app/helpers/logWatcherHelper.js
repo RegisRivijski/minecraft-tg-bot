@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 
 import config from '../../config/default.js';
-import { HTML, chatRelayLine, worldEventLine } from './copyHelper.js';
+import { postToChannel } from './channelHelper.js';
+import { chatRelayLine, worldEventLine } from './copyHelper.js';
 import { parseChatLine, parseJoinLeaveLine, parseWorldEventLine } from './minecraftHelper.js';
-import { listAdvancementRelay, listChatRelay, listDeathRelay, listJoinRelay } from './chatRelayHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
 
 const MAX_READ_BYTES = 512 * 1024;
@@ -57,48 +57,18 @@ function classifyLogLines(lines) {
   };
 }
 
-async function sendToChats(telegram, chatIds, text, label) {
-  if (!text || !chatIds.length) {
-    return;
-  }
-  await Promise.all(chatIds.map((chatId) => (
-    telegram.sendMessage(chatId, text, HTML).catch((err) => {
-      console.warn(`[${label}] chat ${chatId}:`, err.message);
-    })
-  )));
-  console.info(`[log] sent ${label} to ${chatIds.length} chat(s)`);
-}
-
 async function forwardLogEvents(telegram, events) {
   const {
     chatMessages, joinLeaveEvents, deaths, advancements,
   } = events;
-
-  const chatIds = listChatRelay();
-  const joinChatIds = listJoinRelay();
-  const deathChatIds = listDeathRelay();
-  const advancementChatIds = listAdvancementRelay();
   const joinedCount = joinLeaveEvents.filter((event) => event.type === 'join').length;
   const leftCount = joinLeaveEvents.filter((event) => event.type === 'leave').length;
 
-  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length}; relays chat=[${chatIds.join(', ') || '—'}] joins=[${joinChatIds.join(', ') || '—'}] deaths=[${deathChatIds.join(', ') || '—'}] advancements=[${advancementChatIds.join(', ') || '—'}]`);
+  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length}`);
 
-  if (chatMessages.length && !chatIds.length) {
-    console.info('[log] skip chat: /chat is off for all chats');
-  }
-  if (joinLeaveEvents.length && !joinChatIds.length) {
-    console.info('[log] skip join/leave: /joins is off for all chats');
-  }
-  if (deaths.length && !deathChatIds.length) {
-    console.info('[log] skip deaths: /deaths is off for all chats');
-  }
-  if (advancements.length && !advancementChatIds.length) {
-    console.info('[log] skip advancements: /advancements is off for all chats');
-  }
-
-  await sendToChats(telegram, chatIds, chatMessages.join('\n'), 'chat');
-  await sendToChats(telegram, deathChatIds, deaths.join('\n'), 'deaths');
-  await sendToChats(telegram, advancementChatIds, advancements.join('\n'), 'advancements');
+  await postToChannel(telegram, chatMessages.join('\n'));
+  await postToChannel(telegram, deaths.join('\n'));
+  await postToChannel(telegram, advancements.join('\n'));
   await notifyJoinLeave(telegram, { events: joinLeaveEvents });
 }
 

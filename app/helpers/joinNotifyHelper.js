@@ -1,5 +1,5 @@
-import { listJoinRelay } from './chatRelayHelper.js';
-import { HTML, joinLeaveText } from './copyHelper.js';
+import { postToChannel } from './channelHelper.js';
+import { joinLeaveText } from './copyHelper.js';
 
 const recentEvents = new Map();
 const DEDUPE_MS = 20000;
@@ -39,12 +39,6 @@ export async function notifyJoinLeave(telegram, payload = {}) {
     return;
   }
 
-  const chatIds = listJoinRelay();
-  if (!chatIds.length) {
-    console.info('[notify] skip join/leave: no chats with /joins on');
-    return;
-  }
-
   const unique = ordered.filter((event) => isUnseenEvent(event.type, event.name));
   if (!unique.length) {
     console.info('[notify] skip join/leave: duplicate within 20s');
@@ -53,10 +47,6 @@ export async function notifyJoinLeave(telegram, payload = {}) {
 
   const text = joinLeaveText(unique, payload.current ?? null);
   const summary = unique.map((event) => `${event.type}:${event.name}`).join(', ');
-  console.info(`[notify] send [${summary}] to ${chatIds.join(', ')}`);
-  await Promise.all(chatIds.map((chatId) => (
-    telegram.sendMessage(chatId, text, HTML).catch((err) => {
-      console.warn(`[notify] chat ${chatId}:`, err.message);
-    })
-  )));
+  console.info(`[notify] send [${summary}]`);
+  await postToChannel(telegram, text);
 }

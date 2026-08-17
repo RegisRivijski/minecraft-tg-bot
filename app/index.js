@@ -1,16 +1,14 @@
 import { Telegraf } from 'telegraf';
 
 import config from '../config/default.js';
-import { OWNER_IDS } from './constants/access.js';
+import { CHANNEL_ID, OWNER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
 import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
 import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
-import minecraftTgBot from './classes/MongooseSignletons/MongooseMinecraftTgBotSingleton.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
-import { loadChatRelay } from './helpers/chatRelayHelper.js';
-import { accessSnapshot } from './helpers/accessHelper.js';
-import { loadAccess } from './helpers/viewerHelper.js';
+import { getChannelId } from './helpers/channelHelper.js';
+import { startChannelWatchers } from './helpers/channelWatcherHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
 
@@ -32,19 +30,18 @@ function printStartupTable(apiRoot) {
     Rcon: `${config.rcon.host}:${config.rcon.port}`,
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
-    Viewers: accessSnapshot().approved.join(', ') || '—',
+    Channel: getChannelId() || CHANNEL_ID || '—',
     Log: config.server.logPath,
-    Mongo: config.db.mongodb.options.dbName,
     LocalApi: Boolean(apiRoot),
   });
 }
 
-function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher }) {
+function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher, stopChannelWatchers }) {
   const shutdown = async (signal) => {
     stopPlayerWatcher();
     stopLogWatcher();
+    stopChannelWatchers();
     await closeRcon();
-    await minecraftTgBot.close().catch(() => {});
     bot.stop(signal);
     process.exit(0);
   };
@@ -57,16 +54,12 @@ export default async function main() {
   if (!config.bot.apiToken) {
     throw new Error('MINECRAFT_TG_BOT_API_TOKEN is required');
   }
-  if (!config.db.mongodb.url) {
-    throw new Error('MONGODB_1_HOSTNAME is required');
-  }
   if (!OWNER_IDS.length) {
     console.warn('[acl] OWNER_IDS is empty — fill app/constants/access.js');
   }
-
-  await minecraftTgBot.asPromise();
-  await loadAccess();
-  await loadChatRelay();
+  if (!getChannelId()) {
+    console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
+  }
 
   const apiRoot = buildTelegramApiRoot();
   const bot = createBot(apiRoot);
@@ -80,16 +73,19 @@ export default async function main() {
 
   const stopPlayerWatcher = startPlayerWatcher(bot.telegram);
   const stopLogWatcher = startLogWatcher(bot.telegram);
+  const stopChannelWatchers = startChannelWatchers(bot.telegram);
 
   await bot.launch({
-    allowedUpdates: ['message', 'callback_query', 'my_chat_member'],
+    allowedUpdates: ['message', 'my_chat_member'],
   });
   await registerBotCommands(bot).catch((error) => {
     console.warn('[telegram] setMyCommands failed:', error.message);
   });
 
   printStartupTable(apiRoot);
-  listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher });
+  listenForShutdown({
+    bot, stopPlayerWatcher, stopLogWatcher, stopChannelWatchers,
+  });
 
   return bot;
 }

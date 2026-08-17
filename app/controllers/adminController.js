@@ -29,6 +29,9 @@ function formatRconReply(raw) {
 }
 
 export async function say(ctx) {
+  if (!(await requireOwner(ctx))) {
+    return;
+  }
   const text = commandArgs(ctx).replace(/[\r\n]+/g, ' ').trim();
   if (!text) {
     await ctx.reply(sayUsage(), HTML);

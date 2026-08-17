@@ -1,40 +1,35 @@
 # Minecraft Telegram Bot
 
-Telegram-бот для SMP-сервера **artur-petrov**. Через RCON показывает статус мира, пишет о входе и выходе игроков, ретранслирует игровой чат в Telegram и даёт операторам команды управления сервером.
+Telegram-бот для SMP-сервера **artur-petrov**. В личке — консоль оператора. В канал пишет ленту мира: вход и выход, чат, смерти, достижения, смену погоды и снимок онлайна раз в час.
 
 ## Features
 
-- Статус мира: игроки онлайн, время суток, сложность, TPS
-- Уведомления о join / leave в разрешённые чаты
-- Ретрансляция чата Minecraft → Telegram (`/chat on|off`)
-- Вход и выход игроков в выбранный чат (`/joins on|off`)
-- Смерти игроков (`/deaths on|off`) и достижения (`/advancements on|off`)
-- Команды оператора: время, погода, whitelist, произвольный RCON
-- ACL: только указанные user id и group chat id
+- Личка доступна только владельцу из `OWNER_IDS`. Остальным бот не отвечает
+- Статус мира в личке: игроки, время суток, сложность, TPS
+- Лента в один канал из `CHANNEL_ID`: join/leave, чат мира, смерти, достижения
+- Смена погоды в канал
+- Раз в час — кто онлайн, если на сервере есть игроки
+- Команды оператора: время, погода, whitelist, `/say`, произвольный RCON
 
 ## Структура
 
-Та же схема, что в gacha-simulator-rest: точка входа тонкая, логика лежит в `app/`.
+Точка входа тонкая, логика лежит в `app/`.
 
 ```
 index.js                 # запуск: import app from './app/index.js'
 app/
-  index.js               # bootstrap Telegraf, Mongo, RCON, вотчеры
+  index.js               # bootstrap Telegraf, RCON, вотчеры
   routes/                # привязка команд бота к контроллерам
-  controllers/           # обработчики команд (как HTTP-контроллеры в REST)
+  controllers/           # обработчики команд
     mainController.js    # /start, /help
     serverController.js  # /server, /list
     worldController.js   # /time, /weather, /seed, /difficulty
-    chatController.js    # /chat, /joins, /deaths, /advancements
     adminController.js   # /say, /whitelist, /rcon
-  helpers/               # бизнес-логика и тексты ответов
+  helpers/               # бизнес-логика, лента канала, тексты
   middlewares/           # ACL и обработка ошибок
   classes/
-    MongooseSignletons/  # подключение MongoDB
     ServiceSingletons/   # подключение RCON
-  models/
-    minecraftTgBot/      # mongoose-модели (папка = имя базы)
-  constants/             # OWNER_IDS, CHAT_IDS
+  constants/             # OWNER_IDS, CHANNEL_ID
 config/
   default.js             # конфиг из переменных окружения
 ```
@@ -43,10 +38,10 @@ config/
 
 1. Команда пришла в Telegram → `app/routes/index.js`
 2. Роут вызывает функцию из `controllers/`
-3. Контроллер берёт данные из `helpers/` и синглтонов, отвечает текстом из `copyHelper.js`
-4. Фоновые задачи (игроки, лог чата) стартуют в `app/index.js`
+3. Контроллер берёт данные из `helpers/` и RCON, отвечает текстом из `copyHelper.js`
+4. Фоновые задачи (игроки, лог, погода, дайджест) стартуют в `app/index.js`
 
-Доступ прописывается вручную в `app/constants/access.js`.
+Владелец и канал прописываются в `app/constants/access.js`.
 
 ## Installation
 
@@ -63,9 +58,11 @@ cd minecraft-tg-bot
 npm install
 ```
 
-3. Заполни `OWNER_IDS` и `CHAT_IDS` в `app/constants/access.js`. Свой id можно узнать, написав боту `/start` в личке.
+3. Заполни `OWNER_IDS` и `CHANNEL_ID` в `app/constants/access.js`.
+   Свой id — напиши боту `/start` в личке (если id уже в `OWNER_IDS`, бот ответит).
+   Id канала — добавь бота в канал админом с правом публиковать сообщения; в логах появится `bot is administrator in channel -100…`.
 
-4. Задай переменные окружения (процесс запуска: Docker, systemd, оболонка). Проект не читает `.env`.
+4. Задай переменные окружения (процесс запуска: Docker, systemd, оболочка). Проект не читает `.env`.
 
 ```dotenv
 MINECRAFT_TG_BOT_API_TOKEN=your_telegram_bot_token
@@ -80,10 +77,8 @@ MINECRAFT_ADDRESS=artur-petrov.vinnica.ua:25565
 MINECRAFT_POLL_INTERVAL_MS=5000
 MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
-
-MONGODB_1_HOSTNAME=your_mongodb_url
-MONGO_INITDB_ROOT_USERNAME=your_mongo_username
-MONGO_INITDB_ROOT_PASSWORD=your_mongo_password
+MINECRAFT_WEATHER_POLL_MS=30000
+MINECRAFT_DIGEST_INTERVAL_MS=3600000
 
 TELEGRAM_BOT_API_PROTOCOL=http:
 TELEGRAM_BOT_API_HOST=127.0.0.1
@@ -104,31 +99,29 @@ npm start
 
 ## Commands
 
-| Команда | Кто | Описание |
-| --- | --- | --- |
-| `/start` | все | Приветствие и адрес сервера |
-| `/help` | все | Список команд |
-| `/server` | все | Меню мира |
-| `/list`, `/online` | все | Игроки на сервере |
-| `/time` | все | Время суток |
-| `/time day\|night\|noon\|midnight` | оператор | Установить время |
-| `/seed` | все | Зерно мира |
-| `/difficulty` | все | Сложность |
-| `/difficulty peaceful\|easy\|normal\|hard` | оператор | Установить сложность |
-| `/chat on\|off` | все | Ретрансляция чата мира в этот Telegram-чат |
-| `/joins on\|off` | все | Вход и выход игроков в этот Telegram-чат |
-| `/deaths on\|off` | все | Смерти игроков в этот Telegram-чат |
-| `/advancements on\|off` | все | Достижения в этот Telegram-чат |
-| `/say <текст>` | все | Сообщение в чат мира |
-| `/weather clear\|rain\|thunder` | оператор | Погода |
-| `/whitelist add\|remove\|list <ник>` | оператор | Вайтлист |
-| `/rcon <команда>` | оператор | Произвольная консольная команда |
+Команды работают только в личке с владельцем.
+
+| Команда | Описание |
+| --- | --- |
+| `/start` | Приветствие и адрес сервера |
+| `/help` | Список команд |
+| `/server` | Статус мира |
+| `/list` | Игроки на сервере |
+| `/time` | Время суток |
+| `/time day\|night\|noon\|midnight` | Установить время |
+| `/seed` | Зерно мира |
+| `/difficulty` | Сложность |
+| `/difficulty peaceful\|easy\|normal\|hard` | Установить сложность |
+| `/say <текст>` | Сообщение в чат мира |
+| `/weather` | Текущая погода |
+| `/weather clear\|rain\|thunder` | Установить погоду |
+| `/whitelist add\|remove\|list <ник>` | Вайтлист |
+| `/rcon <команда>` | Произвольная консольная команда |
 
 ## Technologies Used
 
 - Node.js — runtime
 - Telegraf — Telegram-бот
-- MongoDB / Mongoose — настройки ретрансляции чата
 - rcon-client — команды Minecraft-сервера
 
 ## Contribution

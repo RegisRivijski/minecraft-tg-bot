@@ -3,13 +3,6 @@ import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames } from './
 
 export const HTML = { parse_mode: 'HTML' };
 
-export function htmlMarkup(inlineKeyboard) {
-  return {
-    parse_mode: 'HTML',
-    reply_markup: { inline_keyboard: inlineKeyboard },
-  };
-}
-
 export function startText() {
   return [
     '<i>Загрузка мира...</i>',
@@ -18,185 +11,26 @@ export function startText() {
     'Режим игры: Выживание',
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
     '',
-    'Введите /help для списка команд.',
+    'Лента сервера пишется в канал. Здесь — команды оператора, /help.',
   ].join('\n');
 }
 
-export function helpText(owner = false) {
-  const lines = [
-    '--- <b>Помощь</b> ---',
+export function helpText() {
+  return [
+    '--- <b>Оператор</b> ---',
     '/server — статус мира',
     '/seed — зерно мира',
-    '/notify — рассылки в этот чат',
     '/say &lt;текст&gt; — сказать в чат мира',
-  ];
-  if (owner) {
-    lines.push(
-      '',
-      '--- <b>Оператор</b> ---',
-      '/viewers — кто смотрит сервер',
-      '/time day|night|noon|midnight — установить время',
-      '/weather clear|rain|thunder — погода',
-      '/difficulty peaceful|easy|normal|hard',
-      '/whitelist add|remove|list &lt;ник&gt;',
-      '/rcon &lt;команда&gt; — консоль сервера',
-    );
-  }
-  return lines.join('\n');
+    '/time day|night|noon|midnight — установить время',
+    '/weather clear|rain|thunder — погода',
+    '/difficulty peaceful|easy|normal|hard',
+    '/whitelist add|remove|list &lt;ник&gt;',
+    '/rcon &lt;команда&gt; — консоль сервера',
+  ].join('\n');
 }
 
 export function noPermission() {
   return 'У вас нет разрешения на использование этой команды.';
-}
-
-export function accessGateText(status) {
-  if (status === 'pending') {
-    return 'Заявка на просмотр сервера уже отправлена. Ждём решения владельца.';
-  }
-  return 'Заявка на просмотр сервера отправлена владельцу. Когда её одобрят, можно будет смотреть статус мира и включать рассылки.';
-}
-
-export function accessRequestOwnerText({ kind, label, chatId, from }) {
-  const type = kind === 'group' ? 'группа' : 'личные сообщения';
-  const lines = [
-    '<b>Заявка на просмотр сервера</b>',
-    '',
-    `Тип: ${type}`,
-    `Кто: ${escapeHtml(label)}`,
-  ];
-  if (kind === 'group' && from) {
-    const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
-      || from.username
-      || from.id;
-    lines.push(`От: ${escapeHtml(String(name))}`);
-  }
-  lines.push(`id: <code>${chatId}</code>`);
-  return lines.join('\n');
-}
-
-export function accessRequestKeyboard(chatId) {
-  return [
-    [
-      { text: 'Одобрить', callback_data: `r:ok:${chatId}` },
-      { text: 'Отклонить', callback_data: `r:no:${chatId}` },
-    ],
-  ];
-}
-
-export function accessApprovedViewerText() {
-  return 'Доступ к просмотру сервера одобрен. /help — список команд, /notify — рассылки.';
-}
-
-export function accessDeniedViewerText() {
-  return 'Владелец отклонил доступ к просмотру сервера.';
-}
-
-export function accessRevokedViewerText() {
-  return 'Доступ к просмотру сервера отключён.';
-}
-
-export function accessDecisionDone({ approved, label }) {
-  return approved
-    ? `Одобрено: ${escapeHtml(label)}`
-    : `Отклонено: ${escapeHtml(label)}`;
-}
-
-export function groupAccessGranted() {
-  return 'Этот чат может смотреть сервер. /notify — рассылки в этот чат.';
-}
-
-export function notifyPanelText(chat) {
-  const where = chat?.type === 'private'
-    ? 'личные сообщения'
-    : (chat?.title ? `чат «${escapeHtml(chat.title)}»` : 'этот чат');
-  return [
-    '<b>Рассылки</b>',
-    `Куда: ${where}`,
-  ].join('\n');
-}
-
-export function notifyToggleLabel(key, enabled) {
-  const names = {
-    chat: 'Чат мира',
-    joins: 'Вход и выход',
-    deaths: 'Смерти',
-    adv: 'Достижения',
-  };
-  return `${enabled ? '✅' : '❌'} ${names[key]}`;
-}
-
-export function notifyNotAdmin() {
-  return 'Рассылки этого чата могут менять только админы.';
-}
-
-function viewerKindLabel(kind) {
-  return kind === 'group' ? 'группа' : 'личка';
-}
-
-function viewerBullet(entry) {
-  return `• ${escapeHtml(entry.label)} · ${viewerKindLabel(entry.kind)} · <code>${entry.chatId}</code>`;
-}
-
-export function viewersEmpty() {
-  return [
-    '<b>Кто смотрит сервер</b>',
-    '',
-    'Пока никто. Заявки появятся, когда кто-то напишет боту /start или добавит его в чат.',
-  ].join('\n');
-}
-
-export function viewersListText(entries) {
-  if (!entries.length) {
-    return viewersEmpty();
-  }
-
-  const pending = entries.filter((entry) => entry.status === 'pending');
-  const approved = entries.filter((entry) => entry.status === 'approved');
-  const revoked = entries.filter((entry) => entry.status === 'revoked');
-  const lines = ['<b>Кто смотрит сервер</b>'];
-
-  if (pending.length) {
-    lines.push('', '<i>Ожидают</i>');
-    lines.push(...pending.map(viewerBullet));
-  }
-  if (approved.length) {
-    lines.push('', '<i>Одобрены</i>');
-    lines.push(...approved.map(viewerBullet));
-  }
-  if (revoked.length) {
-    lines.push('', '<i>Отключены</i>');
-    lines.push(...revoked.map(viewerBullet));
-  }
-
-  lines.push('', 'Кнопки ниже — одобрить, отклонить, отключить или вернуть доступ.');
-  return lines.join('\n');
-}
-
-function shortButtonLabel(label) {
-  const text = String(label || '').trim() || 'без имени';
-  return text.length > 28 ? `${text.slice(0, 27)}…` : text;
-}
-
-export function viewersKeyboard(entries) {
-  const rows = [];
-  for (const entry of entries) {
-    const name = shortButtonLabel(entry.label);
-    if (entry.status === 'pending') {
-      rows.push([
-        { text: `✓ ${name}`, callback_data: `v:ok:${entry.chatId}` },
-        { text: '✗', callback_data: `v:no:${entry.chatId}` },
-      ]);
-    } else if (entry.status === 'approved') {
-      rows.push([
-        { text: `Отключить · ${name}`, callback_data: `v:x:${entry.chatId}` },
-      ]);
-    } else {
-      rows.push([
-        { text: `Включить · ${name}`, callback_data: `v:on:${entry.chatId}` },
-      ]);
-    }
-  }
-  return rows;
 }
 
 export function serverMenu({ list, daytime, weather, difficulty, tps }) {
@@ -267,6 +101,16 @@ export function weatherText(weather) {
 
 export function weatherSetDone(label) {
   return `Погода изменена: ${label}`;
+}
+
+export function weatherChangedText(previous, current) {
+  if (!current) {
+    return '';
+  }
+  if (!previous || previous.key === current.key) {
+    return `${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
+  }
+  return `${previous.icon} → ${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
 }
 
 export function seedText(seed) {
@@ -352,6 +196,20 @@ export function joinLeaveText(events, current) {
     } else {
       lines.push(`Игроки (${current.online}/${current.max}): ${formatPlayerNames(current.players)}`);
     }
+  }
+  return lines.join('\n');
+}
+
+export function onlineDigestText({ list, daytime, weather }) {
+  const lines = [
+    `<b>На сервере ${list.online} из ${list.max}</b>`,
+    formatPlayerNames(list.players),
+  ];
+  if (daytime?.label) {
+    lines.push('', `${daytime.icon} ${daytime.label}`);
+  }
+  if (weather) {
+    lines.push(`${weather.icon} ${escapeHtml(weather.label)}`);
   }
   return lines.join('\n');
 }
