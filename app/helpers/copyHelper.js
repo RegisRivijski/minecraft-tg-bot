@@ -103,14 +103,17 @@ export function weatherSetDone(label) {
   return `Погода изменена: ${label}`;
 }
 
-export function weatherChangedText(previous, current) {
+export function weatherChangedText(previous, current, daytime) {
   if (!current) {
     return '';
   }
-  if (!previous || previous.key === current.key) {
-    return `${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
+  const weatherLine = !previous || previous.key === current.key
+    ? `${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`
+    : `${previous.icon} → ${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
+  if (!daytime?.label) {
+    return weatherLine;
   }
-  return `${previous.icon} → ${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
+  return `${weatherLine}\n${daytime.icon} ${escapeHtml(daytime.label)}`;
 }
 
 export function seedText(seed) {

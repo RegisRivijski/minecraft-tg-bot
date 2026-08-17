@@ -59,8 +59,9 @@ function startWeatherWatcher(telegram) {
       }
       const previous = describeWeather(previousKey);
       previousKey = weather.key;
+      const { daytime } = await fetchTime();
       console.info(`[weather] ${previous?.key || '—'} → ${weather.key}`);
-      await postWeatherChange(telegram, weatherChangedText(previous, weather), weather.key);
+      await postWeatherChange(telegram, weatherChangedText(previous, weather, daytime), weather.key);
     } catch (err) {
       console.warn('[weather]', err.message);
     } finally {
