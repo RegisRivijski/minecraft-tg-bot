@@ -10,6 +10,7 @@ import {
   serverStartedText,
   serverStoppingText,
   worldEventLine,
+  advancementLine,
 } from './copyHelper.js';
 import {
   parseChatLine,
@@ -21,6 +22,7 @@ import {
 } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
 import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin } from './worldStatsHelper.js';
+import { translateDeathMessage } from './langHelper.js';
 
 const MAX_READ_BYTES = 512 * 1024;
 
@@ -91,12 +93,12 @@ function classifyLogLines(lines) {
       console.info(`[log] parsed ${event.type}: ${event.text.slice(0, 160)}`);
       if (event.type === 'advancement') {
         recordAdvancement(event.name);
-        advancements.push(worldEventLine(event));
+        advancements.push(advancementLine(event));
       } else if (event.type === 'pet_death') {
-        petDeaths.push(petDeathLine(event));
+        petDeaths.push(petDeathLine({ ...event, text: translateDeathMessage(event.text) }));
       } else {
         recordDeath(event.name);
-        deaths.push(worldEventLine(event));
+        deaths.push(worldEventLine({ ...event, text: translateDeathMessage(event.text) }));
       }
     }
   }

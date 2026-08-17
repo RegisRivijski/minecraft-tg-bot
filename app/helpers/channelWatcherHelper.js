@@ -10,9 +10,10 @@ import {
   tpsRecoveredText,
   weatherChangedText,
   weeklyRecapText,
+  worldSpecialText,
 } from './copyHelper.js';
 import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
-import { fetchMoon, fetchTime, queryTps, queryWeather } from './serverHelper.js';
+import { fetchMoon, fetchTime, queryPresent, queryTps, queryWeather } from './serverHelper.js';
 import {
   takeDailyRecap,
   takeEmptyWorldAnnouncement,
@@ -25,12 +26,14 @@ export function startChannelWatchers(telegram) {
   const stopDigest = startOnlineDigest(telegram);
   const stopTps = startTpsWatcher(telegram);
   const stopMoon = startMoonWatcher(telegram);
+  const stopWorldEvents = startWorldEventWatcher(telegram);
   const stopSchedule = startScheduleWatcher(telegram);
   return () => {
     stopWeather();
     stopDigest();
     stopTps();
     stopMoon();
+    stopWorldEvents();
     stopSchedule();
   };
 }
@@ -207,6 +210,88 @@ function startMoonWatcher(telegram) {
   timer = setInterval(pollMoon, config.server.moonPollMs);
   pollMoon();
   console.info(`[moon] polling every ${config.server.moonPollMs}ms`);
+
+  return () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+}
+
+const WORLD_EVENTS = [
+  {
+    key: 'raid',
+    commands: [
+      'execute as @e[type=#minecraft:raiders,limit=1] if data entity @s RaidId',
+      'execute if entity @e[type=minecraft:ravager,limit=1]',
+    ],
+  },
+  {
+    key: 'dragon',
+    commands: ['execute if entity @e[type=minecraft:ender_dragon,limit=1]'],
+  },
+  {
+    key: 'wither',
+    commands: ['execute if entity @e[type=minecraft:wither,limit=1]'],
+  },
+  {
+    key: 'warden',
+    commands: ['execute if entity @e[type=minecraft:warden,limit=1]'],
+  },
+];
+
+function startWorldEventWatcher(telegram) {
+  const seen = Object.fromEntries(WORLD_EVENTS.map((event) => [event.key, null]));
+  const goneStreak = Object.fromEntries(WORLD_EVENTS.map((event) => [event.key, 0]));
+  let timer = null;
+  let inFlight = false;
+
+  const pollWorldEvents = async () => {
+    if (inFlight) {
+      return;
+    }
+    inFlight = true;
+    try {
+      for (const event of WORLD_EVENTS) {
+        const present = await queryPresent(event.commands);
+        if (present == null) {
+          continue;
+        }
+        if (seen[event.key] == null) {
+          seen[event.key] = present;
+          continue;
+        }
+        if (present) {
+          goneStreak[event.key] = 0;
+          if (!seen[event.key]) {
+            seen[event.key] = true;
+            console.info(`[world] ${event.key} started`);
+            await postToChannel(telegram, worldSpecialText(event.key, true));
+          }
+          continue;
+        }
+        if (seen[event.key]) {
+          goneStreak[event.key] += 1;
+          if (goneStreak[event.key] < 2) {
+            continue;
+          }
+          seen[event.key] = false;
+          goneStreak[event.key] = 0;
+          console.info(`[world] ${event.key} ended`);
+          await postToChannel(telegram, worldSpecialText(event.key, false));
+        }
+      }
+    } catch (err) {
+      console.warn('[world]', err.message);
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  timer = setInterval(pollWorldEvents, config.server.worldEventPollMs);
+  pollWorldEvents();
+  console.info(`[world] polling raid/dragon/wither/warden every ${config.server.worldEventPollMs}ms`);
 
   return () => {
     if (timer) {

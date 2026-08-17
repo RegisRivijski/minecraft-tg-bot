@@ -1,5 +1,6 @@
 import config from '../../config/default.js';
 import { describeTps, escapeHtml, formatPlayerName, formatPlayerNames, petTypeLabel } from './minecraftHelper.js';
+import { resolveAdvancement } from './langHelper.js';
 
 export const HTML = { parse_mode: 'HTML' };
 
@@ -179,6 +180,19 @@ export function worldEventLine(event) {
   return `${formatPlayerName(event.name)}${text.slice(name.length)}`;
 }
 
+const ADVANCEMENT_VERBS = {
+  advancement: 'получил достижение',
+  challenge: 'выполнил испытание',
+  goal: 'достиг цели',
+};
+
+export function advancementLine(event) {
+  const info = resolveAdvancement(event.title);
+  const verb = ADVANCEMENT_VERBS[event.kind] || ADVANCEMENT_VERBS.advancement;
+  const title = `<a href="${escapeHtml(info.url)}">${escapeHtml(info.ru)}</a>`;
+  return `${formatPlayerName(event.name)} ${verb} ${title}`;
+}
+
 export function chatRelayLine(name, message) {
   return `&lt;${formatPlayerName(name)}&gt; ${escapeHtml(message)}`;
 }
@@ -260,6 +274,20 @@ export function moonPhaseText(moon) {
 export function emptyWorldText({ sinceLabel, hours }) {
   const duration = hours === 1 ? '1 ч' : `${hours} ч`;
   return `Мир пуст с ${escapeHtml(sinceLabel)} (уже ${duration}).`;
+}
+
+export function worldSpecialText(key, started) {
+  const copy = {
+    raid: ['Начался рейд.', 'Рейд закончился.'],
+    dragon: ['Пробудился Эндер-дракон.', 'Эндер-дракон побеждён.'],
+    wither: ['Призван Визер.', 'Визер побеждён.'],
+    warden: ['Пробудился Хранитель.', 'Хранитель исчез.'],
+  };
+  const pair = copy[key];
+  if (!pair) {
+    return '';
+  }
+  return started ? pair[0] : pair[1];
 }
 
 export function dailyRecapText({ dateLabel, players, deaths, advancements, moon }) {

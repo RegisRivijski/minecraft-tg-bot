@@ -429,12 +429,13 @@ const EVENT_NOISE = [
 ];
 
 const ADVANCEMENT_LINE = [
-  /^(?<name>.+?) has made the advancement \[(?<title>.+)\]$/,
-  /^(?<name>.+?) has completed the challenge \[(?<title>.+)\]$/,
-  /^(?<name>.+?) has reached the goal \[(?<title>.+)\]$/,
-  /^(?<name>.+?) получил(?:а)? достижение \[(?<title>.+)\]$/,
-  /^(?<name>.+?) выполнил(?:а)? задание \[(?<title>.+)\]$/,
-  /^(?<name>.+?) достиг(?:ла)? цели \[(?<title>.+)\]$/,
+  { kind: 'advancement', pattern: /^(?<name>.+?) has made the advancement \[(?<title>.+)\]$/ },
+  { kind: 'challenge', pattern: /^(?<name>.+?) has completed the challenge \[(?<title>.+)\]$/ },
+  { kind: 'goal', pattern: /^(?<name>.+?) has reached the goal \[(?<title>.+)\]$/ },
+  { kind: 'advancement', pattern: /^(?<name>.+?) получил(?:а)? достижение \[(?<title>.+)\]$/ },
+  { kind: 'challenge', pattern: /^(?<name>.+?) выполнил(?:а)? задание \[(?<title>.+)\]$/ },
+  { kind: 'challenge', pattern: /^(?<name>.+?) выполнил(?:а)? испытание \[(?<title>.+)\]$/ },
+  { kind: 'goal', pattern: /^(?<name>.+?) достиг(?:ла)? цели \[(?<title>.+)\]$/ },
 ];
 
 const DEATH_LINE = [
@@ -617,11 +618,12 @@ export function parseWorldEventLine(raw) {
     return null;
   }
 
-  for (const pattern of ADVANCEMENT_LINE) {
+  for (const { kind, pattern } of ADVANCEMENT_LINE) {
     const match = payload.match(pattern);
     if (match?.groups?.name) {
       return {
         type: 'advancement',
+        kind,
         name: match.groups.name.trim(),
         title: match.groups.title?.trim() || '',
         text: payload,

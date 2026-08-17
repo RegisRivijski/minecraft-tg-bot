@@ -116,3 +116,17 @@ export async function fetchMoon() {
   }
   return describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY));
 }
+
+export async function queryPresent(commands) {
+  for (const command of commands) {
+    const raw = await rconSend(command).catch(() => '');
+    const result = parseWeatherCheck(raw);
+    if (result === true) {
+      return true;
+    }
+    if (result === false) {
+      return false;
+    }
+  }
+  return null;
+}
