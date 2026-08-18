@@ -16,14 +16,22 @@ const WEATHER_IMAGES = {
   thunder: weatherAsset('thunder'),
 };
 
-const CLEAR_PHASE_IMAGES = {
-  sunrise: weatherAsset('clear-sunrise'),
-  morning: weatherAsset('clear-morning'),
-  noon: weatherAsset('clear-noon'),
-  day: weatherAsset('clear'),
-  sunset: weatherAsset('clear-sunset'),
-  night: weatherAsset('clear-night'),
-  midnight: weatherAsset('clear-midnight'),
+function phaseImages(weather, dayFile = weather) {
+  return {
+    sunrise: weatherAsset(`${weather}-sunrise`),
+    morning: weatherAsset(`${weather}-morning`),
+    noon: weatherAsset(`${weather}-noon`),
+    day: weatherAsset(dayFile),
+    sunset: weatherAsset(`${weather}-sunset`),
+    night: weatherAsset(`${weather}-night`),
+    midnight: weatherAsset(`${weather}-midnight`),
+  };
+}
+
+const WEATHER_PHASE_IMAGES = {
+  clear: phaseImages('clear'),
+  rain: phaseImages('rain', 'rain-day'),
+  thunder: phaseImages('thunder', 'thunder-day'),
 };
 
 const MOON_IMAGES = {
@@ -70,11 +78,9 @@ async function imagePath(map, key) {
 }
 
 async function weatherImagePath(key, phase) {
-  if (key === 'clear') {
-    const timed = await imagePath(CLEAR_PHASE_IMAGES, phase);
-    if (timed) {
-      return timed;
-    }
+  const timed = await imagePath(WEATHER_PHASE_IMAGES[key], phase);
+  if (timed) {
+    return timed;
   }
   return imagePath(WEATHER_IMAGES, key);
 }
