@@ -203,15 +203,17 @@ function startMoonWatcher(telegram) {
       if (!await takeMoonAnnouncement(moon, isNotableMoonPhase(moon))) {
         return;
       }
-      const [{ daytime }, listRaw] = await Promise.all([
+      const [{ daytime }, listRaw, weather] = await Promise.all([
         fetchTime(),
         rconSend('list'),
+        queryWeather(),
       ]);
       console.info(`[moon] ${moon.key} day=${moon.day}`);
       await postMoonChange(
         telegram,
-        moonPhaseText(moon, daytime, parsePlayerList(listRaw)),
+        moonPhaseText(moon, daytime, parsePlayerList(listRaw), weather),
         moon.key,
+        weather?.key,
       );
     } catch (err) {
       console.warn('[moon]', err.message);

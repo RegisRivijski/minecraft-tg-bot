@@ -34,9 +34,26 @@ const WEATHER_PHASE_IMAGES = {
   thunder: phaseImages('thunder', 'thunder-day'),
 };
 
+function moonAsset(name) {
+  return fileURLToPath(new URL(`../assets/moon/${name}.jpg`, import.meta.url));
+}
+
 const MOON_IMAGES = {
-  full: fileURLToPath(new URL('../assets/moon/full.jpg', import.meta.url)),
-  new: fileURLToPath(new URL('../assets/moon/new.jpg', import.meta.url)),
+  full: moonAsset('full'),
+  new: moonAsset('new'),
+};
+
+const MOON_WEATHER_IMAGES = {
+  full: {
+    clear: moonAsset('full'),
+    rain: moonAsset('full-rain'),
+    thunder: moonAsset('full-thunder'),
+  },
+  new: {
+    clear: moonAsset('new'),
+    rain: moonAsset('new-rain'),
+    thunder: moonAsset('new-thunder'),
+  },
 };
 
 let linkedChatId = null;
@@ -85,7 +102,11 @@ async function weatherImagePath(key, phase) {
   return imagePath(WEATHER_IMAGES, key);
 }
 
-function moonImagePath(key) {
+async function moonImagePath(key, weatherKey) {
+  const byWeather = await imagePath(MOON_WEATHER_IMAGES[key], weatherKey);
+  if (byWeather) {
+    return byWeather;
+  }
   return imagePath(MOON_IMAGES, key);
 }
 
@@ -156,8 +177,8 @@ export async function postWeatherChange(telegram, caption, weatherKey, daytime) 
   await postToChannel(telegram, caption);
 }
 
-export async function postMoonChange(telegram, caption, moonKey) {
-  const image = await moonImagePath(moonKey);
+export async function postMoonChange(telegram, caption, moonKey, weatherKey) {
+  const image = await moonImagePath(moonKey, weatherKey);
   if (image) {
     await postPhotoToChannel(telegram, image, caption);
     return;

@@ -261,13 +261,45 @@ export function onlinePlayersText(list) {
   return `Игроки (${list.online}/${list.max}): ${formatPlayerNames(list.players)}`;
 }
 
-function appendWorldContext(lines, daytime, list, moon) {
-  if (daytime?.label) {
-    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
+function formatMoonLine(moon) {
+  if (!moon) {
+    return null;
   }
-  if (moon) {
-    lines.push(`${moon.icon} ${escapeHtml(moon.label)}`);
+  return `${moon.icon} ${escapeHtml(moon.label)}`;
+}
+
+function formatTimeLine(daytime) {
+  if (!daytime?.label) {
+    return null;
   }
+  return `${daytime.icon} ${escapeHtml(daytime.label)}`;
+}
+
+function formatWeatherLine(weather, previous) {
+  if (!weather) {
+    return null;
+  }
+  if (previous && previous.key !== weather.key) {
+    return `${previous.icon} → ${weather.icon} · <b>${escapeHtml(weather.label)}</b>`;
+  }
+  return `${weather.icon} · ${escapeHtml(weather.label)}`;
+}
+
+function worldStatusLines({ moon, daytime, weather, previousWeather } = {}) {
+  return [
+    formatWeatherLine(weather, previousWeather),
+    formatTimeLine(daytime),
+    formatMoonLine(moon),
+  ].filter(Boolean);
+}
+
+function appendWorldContext(lines, daytime, list, extra = {}) {
+  lines.push(...worldStatusLines({
+    moon: extra.moon,
+    daytime,
+    weather: extra.weather,
+    previousWeather: extra.previousWeather,
+  }));
   const players = onlinePlayersText(list);
   if (players) {
     lines.push('', players);
@@ -278,11 +310,12 @@ export function weatherChangedText(previous, current, daytime, list, moon) {
   if (!current) {
     return '';
   }
-  const weatherLine = !previous || previous.key === current.key
-    ? `${current.icon} · <b>${escapeHtml(current.label)}</b>`
-    : `${previous.icon} → ${current.icon} · <b>${escapeHtml(current.label)}</b>`;
-  const lines = [weatherLine];
-  appendWorldContext(lines, daytime, list, moon);
+  const lines = [];
+  appendWorldContext(lines, daytime, list, {
+    moon,
+    weather: current,
+    previousWeather: previous,
+  });
   return lines.join('\n');
 }
 
@@ -391,14 +424,9 @@ export function onlineDigestText({ list, daytime, weather, moon }) {
     `<b>На сервере ${list.online} из ${list.max}</b>`,
     formatPlayerNames(list.players),
   ];
-  if (daytime?.label) {
-    lines.push('', `${daytime.icon} ${daytime.label}`);
-  }
-  if (weather) {
-    lines.push(`${weather.icon} · ${escapeHtml(weather.label)}`);
-  }
-  if (moon) {
-    lines.push(`${moon.icon} ${escapeHtml(moon.label)}`);
+  const status = worldStatusLines({ moon, daytime, weather });
+  if (status.length) {
+    lines.push('', ...status);
   }
   return lines.join('\n');
 }
@@ -436,12 +464,12 @@ export function serverStoppingText() {
   return 'Сервер останавливается.';
 }
 
-export function moonPhaseText(moon, daytime, list) {
+export function moonPhaseText(moon, daytime, list, weather) {
   if (!moon) {
     return '';
   }
-  const lines = [`${moon.icon} ${escapeHtml(moon.label)}`];
-  appendWorldContext(lines, daytime, list);
+  const lines = [];
+  appendWorldContext(lines, daytime, list, { moon, weather });
   return lines.join('\n');
 }
 
