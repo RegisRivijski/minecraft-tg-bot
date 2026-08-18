@@ -2,7 +2,7 @@ import { OWNER_IDS } from '../constants/access.js';
 
 const OWNER_COMMANDS = [
   { command: 'help', description: 'Помощь' },
-  { command: 'server', description: 'Статус мира' },
+  { command: 'server', description: 'Сводка мира' },
   { command: 'seed', description: 'Зерно мира' },
   { command: 'say', description: 'Сказать в чат мира' },
   { command: 'time', description: 'Установить время' },

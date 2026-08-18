@@ -546,3 +546,44 @@ export function takeWeeklyRecap(parts = zonedParts()) {
   }
   return { playTop, deathTop };
 }
+
+export function ownerWorldStats() {
+  rotateBucketsIfNeeded();
+  const now = Date.now();
+  const joined = Object.keys(state.day.joined || {})
+    .sort((left, right) => left.localeCompare(right));
+  const sessions = Object.fromEntries(
+    Object.entries(state.sessions || {}).map(([name, started]) => [
+      name,
+      formatDuration(Math.max(0, now - started)),
+    ]),
+  );
+  const emptySince = state.empty?.since;
+  let empty = null;
+  if (emptySince) {
+    const elapsed = Math.max(0, now - emptySince);
+    empty = {
+      sinceLabel: emptySinceLabel(emptySince),
+      minutes: Math.floor(elapsed / 60000),
+      hours: Math.floor(elapsed / HOUR_MS),
+      days: elapsed >= DAY_MS ? Math.max(1, Math.floor(elapsed / DAY_MS)) : 0,
+    };
+  }
+
+  return {
+    knownPlayers: Object.keys(state.knownPlayers || {}).length,
+    joined,
+    deaths: sumCounts(state.day.deaths),
+    advancements: sumCounts(state.day.advancements),
+    playTop: topEntries(playMsWithOpenSessions(state.day.playMs)).map(([name, ms]) => ({
+      name,
+      duration: formatDuration(ms),
+    })),
+    weekPlayTop: topEntries(playMsWithOpenSessions(state.week.playMs)).map(([name, ms]) => ({
+      name,
+      duration: formatDuration(ms),
+    })),
+    sessions,
+    empty,
+  };
+}

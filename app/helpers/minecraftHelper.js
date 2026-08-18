@@ -176,15 +176,31 @@ export function formatPlayerNames(players) {
   return players.map(formatPlayerName).join(', ');
 }
 
+const EXECUTE_FAIL = /test failed|проверка не пройдена/i;
+const EXECUTE_PASS = /test passed|проверка пройдена/i;
+const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse|could not parse|malformed/i;
+
 // RCON: TPS
-export function parseTps(raw) {
+export function parseTpsWindows(raw) {
   const text = stripMcColor(raw);
-  const numbers = [...text.matchAll(/(\d+(?:\.\d+)?)/g)].map((match) => Number(match[1]));
-  if (!numbers.length) {
+  if (!text || COMMAND_ERROR.test(text)) {
     return null;
   }
-  const window = numbers.length >= 3 ? numbers.slice(-3) : numbers;
-  return window[0];
+
+  const labeled = text.match(/tps[^:\n]*:\s*([0-9.,\s]+)/i);
+  const source = labeled ? labeled[1] : text;
+  const windows = [...source.matchAll(/(\d+(?:\.\d+)?)/g)]
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value) && value <= 21);
+  if (!windows.length) {
+    return null;
+  }
+  const shown = windows.length > 3 ? windows.slice(-3) : windows;
+  return { current: shown[0], windows: shown };
+}
+
+export function parseTps(raw) {
+  return parseTpsWindows(raw)?.current ?? null;
 }
 
 export function describeTps(tps) {
@@ -251,10 +267,6 @@ export function describeWeather(key) {
   return { key: id, label, icon: WEATHER_ICONS[id] };
 }
 
-const EXECUTE_FAIL = /test failed|проверка не пройдена/i;
-const EXECUTE_PASS = /test passed|проверка пройдена/i;
-const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse|could not parse|malformed/i;
-
 export function parseWeatherQuery(raw) {
   const text = stripMcColor(raw);
   if (!text || COMMAND_ERROR.test(text) || /usage:/i.test(text)) {
@@ -300,6 +312,44 @@ export function parseDifficulty(raw) {
   const text = stripMcColor(raw);
   const match = text.match(/\b(peaceful|easy|normal|hard)\b/i);
   return match ? difficultyLabel(match[1]) : (text || null);
+}
+
+export function parseGamerule(raw) {
+  const text = stripMcColor(raw);
+  if (!text || COMMAND_ERROR.test(text)) {
+    return null;
+  }
+  const bool = text.match(/\b(true|false)\b/i);
+  if (bool) {
+    return bool[1].toLowerCase() === 'true';
+  }
+  const number = text.match(/(-?\d+(?:\.\d+)?)\s*$/);
+  if (number) {
+    return Number(number[1]);
+  }
+  return null;
+}
+
+export function parseWhitelistList(raw) {
+  const text = stripMcColor(raw).replace(/\s+/g, ' ').trim();
+  if (!text || COMMAND_ERROR.test(text)) {
+    return { ok: false, count: 0, players: [], raw: text };
+  }
+  if (/no whitelisted|нет[^\n]*(вайтлист|белом списке|белого списка)|вайтлист пуст/i.test(text)) {
+    return { ok: true, count: 0, players: [], raw: text };
+  }
+
+  const countMatch = text.match(/(?:there are|there is)\s+(\d+)\s+whitelisted player/i)
+    || text.match(/(\d+)\s+(?:игрок(?:а|ов)?|игроков)/i);
+  const namesPart = text.includes(':') ? text.slice(text.indexOf(':') + 1) : '';
+  const players = splitPlayerNames(namesPart);
+  const count = countMatch ? Number(countMatch[1]) : players.length;
+  return {
+    ok: true,
+    count,
+    players,
+    raw: text,
+  };
 }
 
 // latest.log: chat, join/leave, deaths, advancements

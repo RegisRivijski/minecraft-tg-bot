@@ -5,13 +5,18 @@ import {
   describeWeather,
   normalizeDayTicks,
   parseDifficulty,
+  parseGamerule,
   parsePlayerList,
+  parseSeed,
   parseTimeQuery,
   parseTps,
+  parseTpsWindows,
   parseWeatherCheck,
   parseWeatherQuery,
+  parseWhitelistList,
   TICKS_PER_DAY,
 } from './minecraftHelper.js';
+import { ownerWorldStats } from './worldStatsHelper.js';
 
 async function queryDaytimeTicks() {
   for (const command of ['time query time', 'time query daytime']) {
@@ -77,20 +82,44 @@ export async function queryWeather() {
 }
 
 export async function fetchServer() {
-  const [listRaw, daytimeTicks, weather, difficultyRaw, tpsRaw] = await Promise.all([
+  const [
+    listRaw,
+    daytimeTicks,
+    weather,
+    difficultyRaw,
+    tpsRaw,
+    seedRaw,
+    moon,
+    whitelistRaw,
+    gamerules,
+    events,
+  ] = await Promise.all([
     rconSend('list'),
     queryDaytimeTicks(),
     queryWeather(),
     rconSend('difficulty').catch(() => ''),
     rconSend('tps').catch(() => ''),
+    rconSend('seed').catch(() => ''),
+    fetchMoon().catch(() => null),
+    rconSend('whitelist list').catch(() => ''),
+    queryGamerules().catch(() => ({})),
+    queryWorldEvents().catch(() => []),
   ]);
 
+  const tpsWindows = parseTpsWindows(tpsRaw);
   return {
     list: parsePlayerList(listRaw),
     daytime: describeDaytime(daytimeTicks),
     weather,
     difficulty: parseDifficulty(difficultyRaw),
-    tps: parseTps(tpsRaw),
+    tps: tpsWindows?.current ?? null,
+    tpsWindows: tpsWindows?.windows || null,
+    seed: parseSeed(seedRaw),
+    moon,
+    whitelist: parseWhitelistList(whitelistRaw),
+    gamerules,
+    events,
+    stats: ownerWorldStats(),
   };
 }
 
@@ -124,4 +153,56 @@ export async function queryPresent(commands) {
     }
   }
   return null;
+}
+
+export const WORLD_EVENT_CHECKS = [
+  {
+    key: 'raid',
+    label: 'Рейд',
+    commands: [
+      'execute as @e[type=#minecraft:raiders,limit=1] if data entity @s RaidId',
+      'execute if entity @e[type=minecraft:ravager,limit=1]',
+    ],
+  },
+  {
+    key: 'dragon',
+    label: 'Эндер-дракон',
+    commands: ['execute if entity @e[type=minecraft:ender_dragon,limit=1]'],
+  },
+  {
+    key: 'wither',
+    label: 'Визер',
+    commands: ['execute if entity @e[type=minecraft:wither,limit=1]'],
+  },
+  {
+    key: 'warden',
+    label: 'Хранитель',
+    commands: ['execute if entity @e[type=minecraft:warden,limit=1]'],
+  },
+];
+
+const OWNER_GAMERULES = [
+  'keepInventory',
+  'mobGriefing',
+  'doMobSpawning',
+  'doDaylightCycle',
+  'doWeatherCycle',
+  'playersSleepingPercentage',
+  'doImmediateRespawn',
+];
+
+async function queryGamerules() {
+  const entries = await Promise.all(OWNER_GAMERULES.map(async (name) => {
+    const raw = await rconSend(`gamerule ${name}`).catch(() => '');
+    return [name, parseGamerule(raw)];
+  }));
+  return Object.fromEntries(entries);
+}
+
+export async function queryWorldEvents() {
+  const found = await Promise.all(WORLD_EVENT_CHECKS.map(async (event) => {
+    const present = await queryPresent(event.commands);
+    return present ? event : null;
+  }));
+  return found.filter(Boolean);
 }

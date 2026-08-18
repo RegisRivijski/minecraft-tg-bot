@@ -24,7 +24,7 @@ export function startText() {
 export function helpText() {
   return [
     '--- <b>Оператор</b> ---',
-    '/server — статус мира',
+    '/server — сводка мира',
     '/seed — зерно мира',
     '/say &lt;текст&gt; — сказать в чат мира',
     '/time day|night|noon|midnight — установить время',
@@ -39,37 +39,182 @@ export function noPermission() {
   return 'У вас нет разрешения на использование этой команды.';
 }
 
-export function serverMenu({ list, daytime, weather, difficulty, tps }) {
+export function serverMenu({
+  list, daytime, weather, difficulty, tps, tpsWindows,
+  seed, moon, whitelist, gamerules, events, stats,
+}) {
   const lines = [
     `<b>${escapeHtml(config.server.motd)}</b>`,
-    `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
-    'Режим игры: Выживание',
+    `<code>${escapeHtml(config.server.address)}</code>`,
   ];
 
+  const headerBits = ['Выживание'];
   if (difficulty) {
-    lines.push(`Сложность: <b>${escapeHtml(difficulty)}</b>`);
+    headerBits.push(escapeHtml(difficulty));
   }
-  if (tps != null) {
-    const tpsText = describeTps(tps);
-    if (tpsText) {
-      lines.push(tpsText);
+  lines.push(headerBits.join(' · '));
+
+  const tpsLine = formatTpsLine(tps, tpsWindows);
+  if (tpsLine) {
+    lines.push('', tpsLine);
+    if (tps != null && Number(tps) < 19.5) {
+      const status = describeTps(tps);
+      if (status) {
+        lines.push(status);
+      }
     }
   }
 
   lines.push('');
+  appendPlayers(lines, list, stats);
 
-  if (list.ok) {
-    lines.push(`Игроки: ${list.online} / ${list.max}`);
-    lines.push(list.players.length ? formatPlayerNames(list.players) : 'На сервере нет игроков.');
-  } else if (list.raw) {
-    lines.push(escapeHtml(list.raw));
+  lines.push('');
+  if (daytime?.label) {
+    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
   }
-
-  lines.push('', `${daytime.icon} Время: <b>${daytime.label}</b>`);
   if (weather) {
-    lines.push(`${weather.icon} Погода: <b>${escapeHtml(weather.label)}</b>`);
+    lines.push(`${weather.icon} · ${escapeHtml(weather.label)}`);
   }
+  if (moon) {
+    const day = Number.isFinite(moon.day) ? ` · день ${moon.day}` : '';
+    lines.push(`${moon.icon} ${escapeHtml(moon.label)}${day}`);
+  }
+  if (seed) {
+    lines.push(`Зерно: <code>${escapeHtml(seed)}</code>`);
+  }
+  if (events?.length) {
+    lines.push(`Сейчас: ${events.map((event) => escapeHtml(event.label)).join(' · ')}`);
+  }
+
+  const ruleLine = formatGameruleLine(gamerules);
+  if (ruleLine || whitelist?.ok) {
+    lines.push('');
+  }
+  if (whitelist?.ok) {
+    lines.push(formatWhitelistLine(whitelist, stats));
+  } else if (stats?.knownPlayers) {
+    lines.push(`Известных игроков: ${stats.knownPlayers}`);
+  }
+  if (ruleLine) {
+    lines.push(ruleLine);
+  }
+
+  appendToday(lines, stats);
   return lines.join('\n');
+}
+
+function formatTpsLine(tps, windows) {
+  const values = (windows?.length ? windows : [tps]).filter((value) => value != null && !Number.isNaN(Number(value)));
+  if (!values.length) {
+    return null;
+  }
+  const formatted = values.map((value, index) => {
+    const text = Number(value).toFixed(1);
+    return index === 0 ? `<b>${text}</b>` : text;
+  }).join(' · ');
+  return `TPS ${formatted}`;
+}
+
+function appendPlayers(lines, list, stats) {
+  if (!list?.ok) {
+    if (list?.raw) {
+      lines.push(escapeHtml(list.raw));
+    }
+    return;
+  }
+
+  lines.push(`Игроки <b>${list.online}</b> / ${list.max}`);
+  if (list.players.length) {
+    for (const name of list.players) {
+      const session = stats?.sessions?.[name];
+      lines.push(session ? `${formatPlayerName(name)} · ${escapeHtml(session)}` : formatPlayerName(name));
+    }
+    return;
+  }
+
+  const emptyLine = formatEmptyLine(stats?.empty);
+  lines.push(emptyLine || 'На сервере нет игроков.');
+}
+
+function formatEmptyLine(empty) {
+  if (!empty?.sinceLabel) {
+    return null;
+  }
+  let elapsed;
+  if (empty.days) {
+    elapsed = formatDays(empty.days);
+  } else if (empty.hours >= 1) {
+    elapsed = empty.hours === 1 ? '1 ч' : `${empty.hours} ч`;
+  } else {
+    elapsed = `${Math.max(1, empty.minutes || 1)} мин`;
+  }
+  return `Пусто с ${escapeHtml(empty.sinceLabel)} · уже ${elapsed}`;
+}
+
+function formatWhitelistLine(whitelist, stats) {
+  const known = stats?.knownPlayers ? ` · известных ${stats.knownPlayers}` : '';
+  if (!whitelist.players.length) {
+    return `Вайтлист ${whitelist.count}${known}`;
+  }
+  const names = whitelist.players.length > 20
+    ? `${formatPlayerNames(whitelist.players.slice(0, 20))} … +${whitelist.players.length - 20}`
+    : formatPlayerNames(whitelist.players);
+  return `Вайтлист ${whitelist.count}${known}: ${names}`;
+}
+
+function formatGameruleLine(rules) {
+  if (!rules) {
+    return null;
+  }
+  const bits = [];
+  if (rules.keepInventory != null) {
+    bits.push(rules.keepInventory ? 'инвентарь сохраняется' : 'инвентарь теряется');
+  }
+  if (rules.mobGriefing != null) {
+    bits.push(rules.mobGriefing ? 'грифинг мобов' : 'без грифинга мобов');
+  }
+  if (rules.doMobSpawning === false) {
+    bits.push('мобы не спавнятся');
+  }
+  if (rules.doDaylightCycle === false) {
+    bits.push('время заморожено');
+  }
+  if (rules.doWeatherCycle === false) {
+    bits.push('погода заморожена');
+  }
+  if (rules.playersSleepingPercentage != null) {
+    bits.push(`сон ${rules.playersSleepingPercentage}%`);
+  }
+  if (rules.doImmediateRespawn) {
+    bits.push('мгновенный респаун');
+  }
+  return bits.length ? bits.join(' · ') : null;
+}
+
+function formatPlayTop(rows) {
+  return rows.map((row) => `${formatPlayerName(row.name)} — ${escapeHtml(row.duration)}`).join(' · ');
+}
+
+function appendToday(lines, stats) {
+  if (!stats) {
+    return;
+  }
+  const hasToday = stats.joined.length || stats.deaths || stats.advancements || stats.playTop?.length;
+  if (hasToday) {
+    lines.push('', `<b>Сегодня</b> · заходили ${stats.joined.length}`);
+    if (stats.joined.length) {
+      lines.push(formatPlayerNames(stats.joined));
+    }
+    if (stats.playTop?.length) {
+      lines.push(`Играли: ${formatPlayTop(stats.playTop)}`);
+    }
+    if (stats.deaths || stats.advancements) {
+      lines.push(`Смертей: <b>${stats.deaths}</b> · достижений: <b>${stats.advancements}</b>`);
+    }
+  }
+  if (stats.weekPlayTop?.length) {
+    lines.push('', `Неделя: ${formatPlayTop(stats.weekPlayTop)}`);
+  }
 }
 
 export function listText(list) {
@@ -134,8 +279,8 @@ export function weatherChangedText(previous, current, daytime, list) {
     return '';
   }
   const weatherLine = !previous || previous.key === current.key
-    ? `${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`
-    : `${previous.icon} → ${current.icon} Погода: <b>${escapeHtml(current.label)}</b>`;
+    ? `${current.icon} · <b>${escapeHtml(current.label)}</b>`
+    : `${previous.icon} → ${current.icon} · <b>${escapeHtml(current.label)}</b>`;
   const lines = [weatherLine];
   appendWorldContext(lines, daytime, list);
   return lines.join('\n');

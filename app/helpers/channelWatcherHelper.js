@@ -13,7 +13,7 @@ import {
   worldSpecialText,
 } from './copyHelper.js';
 import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
-import { fetchMoon, fetchTime, queryPresent, queryTps, queryWeather } from './serverHelper.js';
+import { fetchMoon, fetchTime, queryPresent, queryTps, queryWeather, WORLD_EVENT_CHECKS } from './serverHelper.js';
 import {
   markOnlineDigestPosted,
   shouldPostOnlineDigest,
@@ -228,27 +228,7 @@ function startMoonWatcher(telegram) {
   };
 }
 
-const WORLD_EVENTS = [
-  {
-    key: 'raid',
-    commands: [
-      'execute as @e[type=#minecraft:raiders,limit=1] if data entity @s RaidId',
-      'execute if entity @e[type=minecraft:ravager,limit=1]',
-    ],
-  },
-  {
-    key: 'dragon',
-    commands: ['execute if entity @e[type=minecraft:ender_dragon,limit=1]'],
-  },
-  {
-    key: 'wither',
-    commands: ['execute if entity @e[type=minecraft:wither,limit=1]'],
-  },
-  {
-    key: 'warden',
-    commands: ['execute if entity @e[type=minecraft:warden,limit=1]'],
-  },
-];
+const WORLD_EVENTS = WORLD_EVENT_CHECKS;
 
 function startWorldEventWatcher(telegram) {
   const seen = Object.fromEntries(WORLD_EVENTS.map((event) => [event.key, null]));
