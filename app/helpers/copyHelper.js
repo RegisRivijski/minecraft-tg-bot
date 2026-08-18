@@ -17,7 +17,7 @@ export function startText() {
     'Режим игры: Выживание',
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
     '',
-    'Чат мира, погода и события идут в ветки группы. Здесь — команды оператора, /help.',
+    'Чат мира, погода и события идут в ветки группы. Вайтлист — /whitelist в общем чате группы. Здесь — команды оператора, /help.',
   ].join('\n');
 }
 
@@ -30,7 +30,7 @@ export function helpText() {
     '/time day|night|noon|midnight — установить время',
     '/weather clear|rain|thunder — погода',
     '/difficulty peaceful|easy|normal|hard',
-    '/whitelist add|remove|list &lt;ник&gt;',
+    '/whitelist add|remove|list &lt;ник&gt; — ЛС и общий чат группы',
     '/rcon &lt;команда&gt; — консоль сервера',
   ].join('\n');
 }
@@ -342,10 +342,28 @@ export function sayDone(name) {
 
 export function whitelistUsage() {
   return [
-    'Использование:',
+    'Вайтлист. В общем чате группы любой участник может добавить себя или друзей.',
+    '',
     '/whitelist list',
-    '/whitelist add &lt;ник&gt;',
-    '/whitelist remove &lt;ник&gt;',
+    '/whitelist add &lt;ник&gt; [ник…]',
+    '/whitelist remove &lt;ник&gt; [ник…]',
+  ].join('\n');
+}
+
+export function whitelistListText(whitelist) {
+  if (!whitelist?.ok) {
+    return whitelist?.raw ? escapeHtml(whitelist.raw) : 'Не удалось прочитать вайтлист.';
+  }
+  if (!whitelist.players.length) {
+    return 'Вайтлист пуст.';
+  }
+  return `Вайтлист (${whitelist.count}): ${formatPlayerNames(whitelist.players)}`;
+}
+
+export function whitelistInvalidNicks(names) {
+  return [
+    'Ник — 1–16 символов: латиница, цифры и _.',
+    `Не подошло: ${names.map(escapeHtml).join(', ')}`,
   ].join('\n');
 }
 

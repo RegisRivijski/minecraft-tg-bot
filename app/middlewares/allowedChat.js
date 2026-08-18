@@ -1,4 +1,4 @@
-import { canUseBot } from '../helpers/accessHelper.js';
+import { canUseBot, isWhitelistCommand } from '../helpers/accessHelper.js';
 import { isRelayMessage, logForeignGroup } from '../helpers/chatBridgeHelper.js';
 import { isForumGroup, isGeneralTopic } from '../helpers/forumHelper.js';
 
@@ -27,6 +27,9 @@ export default async function allowedChat(ctx, next) {
   }
   if (isForumGroup(ctx.chat.id)) {
     if (isGeneralTopic(ctx.message)) {
+      if (isCommand(ctx) && isWhitelistCommand(ctx)) {
+        return next();
+      }
       return;
     }
     if (!isCommand(ctx) && isRelayMessage(ctx)) {

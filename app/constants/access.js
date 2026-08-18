@@ -9,7 +9,8 @@
  *
  * TOPIC_THREADS — message_thread_id of each topic, from a topic link
  * t.me/c/<chat>/<thread> or t.me/c/<chat>/<thread>/<msg>.
- * The General topic ("Головний чат") is never read or written.
+ * The General topic ("Головний чат") is not used for the world feed.
+ * Group members can manage the whitelist there with /whitelist.
  *
  * To get a group id, add the bot — logs will show
  * `[forum] bot is administrator in supergroup -100…`.

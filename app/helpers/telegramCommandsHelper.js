@@ -1,4 +1,4 @@
-import { OWNER_IDS } from '../constants/access.js';
+import { GROUP_ID, OWNER_IDS } from '../constants/access.js';
 
 const OWNER_COMMANDS = [
   { command: 'help', description: 'Помощь' },
@@ -12,6 +12,10 @@ const OWNER_COMMANDS = [
   { command: 'rcon', description: 'Консоль сервера' },
 ];
 
+const GROUP_COMMANDS = [
+  { command: 'whitelist', description: 'Вайтлист: list, add, remove' },
+];
+
 export async function registerBotCommands(bot) {
   await bot.telegram.setMyCommands([]);
   await Promise.all(OWNER_IDS.map((ownerId) => (
@@ -19,5 +23,11 @@ export async function registerBotCommands(bot) {
       scope: { type: 'chat', chat_id: ownerId },
     })
   )));
-  console.info(`[telegram] registered ${OWNER_COMMANDS.length} owner commands`);
+  if (GROUP_ID) {
+    await bot.telegram.setMyCommands(GROUP_COMMANDS, {
+      scope: { type: 'chat', chat_id: GROUP_ID },
+    });
+  }
+  console.info(`[telegram] registered ${OWNER_COMMANDS.length} owner commands`
+    + (GROUP_ID ? ` and ${GROUP_COMMANDS.length} group commands` : ''));
 }

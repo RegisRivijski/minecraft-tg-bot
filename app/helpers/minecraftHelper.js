@@ -169,6 +169,10 @@ export function formatPlayerName(name) {
   return `<i><code>${escapeHtml(name)}</code></i>`;
 }
 
+export function isMinecraftNick(name) {
+  return /^[A-Za-z0-9_]{1,16}$/.test(String(name || ''));
+}
+
 export function formatPlayerNames(players) {
   if (!players.length) {
     return 'нет игроков';
