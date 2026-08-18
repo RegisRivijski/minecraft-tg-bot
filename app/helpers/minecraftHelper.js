@@ -107,7 +107,7 @@ export function describeDaytime(ticks) {
     phase = 'sunrise';
   } else if (dayTicks < 6000) {
     name = 'Утро';
-    icon = '🌤️';
+    icon = '🌄';
     phase = 'morning';
   } else if (dayTicks < 9000) {
     name = 'Полдень';
