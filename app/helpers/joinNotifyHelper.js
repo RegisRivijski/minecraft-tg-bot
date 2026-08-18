@@ -1,4 +1,4 @@
-import { postToChannel } from './channelHelper.js';
+import { postToEvents } from './forumHelper.js';
 import { joinLeaveText } from './copyHelper.js';
 
 const recentEvents = new Map();
@@ -48,5 +48,5 @@ export async function notifyJoinLeave(telegram, payload = {}) {
   const text = joinLeaveText(unique, payload.current ?? null);
   const summary = unique.map((event) => `${event.type}:${event.name}`).join(', ');
   console.info(`[notify] send [${summary}]`);
-  await postToChannel(telegram, text);
+  await postToEvents(telegram, text);
 }

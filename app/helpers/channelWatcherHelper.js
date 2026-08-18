@@ -1,6 +1,6 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import config from '../../config/default.js';
-import { postMoonChange, postToChannel, postWeatherChange } from './channelHelper.js';
+import { postMoonChange, postOnlineDigest, postToEvents, postWeatherChange } from './forumHelper.js';
 import {
   dailyRecapText,
   emptyWorldText,
@@ -114,7 +114,7 @@ function startOnlineDigest(telegram) {
         return;
       }
       console.info(`[digest] ${list.online} online`);
-      await postWeatherChange(
+      await postOnlineDigest(
         telegram,
         onlineDigestText({ list, daytime, weather, moon }),
         weather?.key,
@@ -162,13 +162,13 @@ function startTpsWatcher(telegram) {
       if (!lagging && tps < config.server.tpsAlertBelow) {
         lagging = true;
         console.info(`[tps] alert ${tps.toFixed(1)}`);
-        await postToChannel(telegram, tpsAlertText(tps));
+        await postToEvents(telegram, tpsAlertText(tps));
         return;
       }
       if (lagging && tps >= config.server.tpsRecoverAt) {
         lagging = false;
         console.info(`[tps] recovered ${tps.toFixed(1)}`);
-        await postToChannel(telegram, tpsRecoveredText(tps));
+        await postToEvents(telegram, tpsRecoveredText(tps));
       }
     } catch (err) {
       console.warn('[tps]', err.message);
@@ -247,20 +247,20 @@ function startScheduleWatcher(telegram) {
       const empty = takeEmptyWorldAnnouncement();
       if (empty) {
         console.info(`[empty] ${empty.days ? `${empty.days}d` : `${empty.hours}h`}`);
-        await postToChannel(telegram, emptyWorldText(empty));
+        await postToEvents(telegram, emptyWorldText(empty));
       }
 
       const parts = zonedParts();
       const daily = takeDailyRecap(parts);
       if (daily) {
         console.info(`[recap] daily players=${daily.players.length} deaths=${daily.deaths}`);
-        await postToChannel(telegram, dailyRecapText(daily));
+        await postToEvents(telegram, dailyRecapText(daily));
       }
 
       const weekly = takeWeeklyRecap(parts);
       if (weekly) {
         console.info(`[recap] weekly play=${weekly.playTop.length} deaths=${weekly.deathTop.length}`);
-        await postToChannel(telegram, weeklyRecapText(weekly));
+        await postToEvents(telegram, weeklyRecapText(weekly));
       }
     } catch (err) {
       console.warn('[schedule]', err.message);

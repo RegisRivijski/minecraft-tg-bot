@@ -1,54 +1,19 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
-import { getChannelId, getGroupChatId, setLinkedChatId } from './channelHelper.js';
+import { getGroupChatId, getThreadId, isChatTopicMessage, isForumGroup } from './forumHelper.js';
 import { stripMcColor } from './minecraftHelper.js';
 
 const MAX_TEXT = 200;
 
 let skipLog = new Set();
 
-export function getRelayChatId() {
-  return getGroupChatId();
-}
-
-export function isRelayChat(chatId) {
-  const id = getRelayChatId();
-  return id != null && Number(chatId) === id;
-}
-
-export async function resolveRelayChat(telegram) {
-  if (getRelayChatId()) {
-    return getRelayChatId();
-  }
-
-  const channelId = getChannelId();
-  if (!channelId) {
-    console.warn('[bridge] CHAT_ID is empty — fill app/constants/access.js');
-    return null;
-  }
-
-  try {
-    const chat = await telegram.getChat(channelId);
-    const linked = Number(chat.linked_chat_id);
-    if (Number.isFinite(linked) && linked !== 0) {
-      setLinkedChatId(linked);
-      console.info(`[bridge] using linked discussion group ${linked}`);
-      return linked;
-    }
-  } catch (err) {
-    console.warn('[bridge] cannot read channel for linked chat:', err.message);
-  }
-
-  console.warn('[bridge] CHAT_ID is empty and the channel has no discussion group');
-  return null;
+export function isRelayMessage(ctx) {
+  return isForumGroup(ctx.chat?.id) && isChatTopicMessage(ctx.message);
 }
 
 export async function warnIfBridgeCannotRead(telegram) {
-  const chatId = getRelayChatId();
+  const chatId = getGroupChatId();
   if (!chatId) {
     return;
-  }
-  if (getChannelId() && chatId === getChannelId()) {
-    console.warn('[bridge] CHAT_ID matches CHANNEL_ID — use a group for chat, not the feed channel');
   }
   try {
     const me = await telegram.getMe();
@@ -59,10 +24,13 @@ export async function warnIfBridgeCannotRead(telegram) {
   } catch (err) {
     console.warn('[bridge] cannot check group membership:', err.message);
   }
+  if (!getThreadId('chat')) {
+    console.warn('[bridge] chat topic id is empty — fill TOPIC_THREADS.chat in app/constants/access.js');
+  }
 }
 
 function speakerName(ctx) {
-  const senderChat = (ctx.message || ctx.channelPost)?.sender_chat;
+  const senderChat = ctx.message?.sender_chat;
   if (senderChat?.title) {
     return String(senderChat.title).replace(/[\r\n]+/g, ' ').trim();
   }
@@ -73,17 +41,13 @@ function speakerName(ctx) {
   return String(name).replace(/[\r\n]+/g, ' ').trim();
 }
 
-function messagePayload(ctx) {
-  return ctx.message || ctx.channelPost || null;
-}
-
 function messageText(message) {
   const raw = message?.text || message?.caption || '';
   return stripMcColor(String(raw).replace(/[\r\n]+/g, ' ')).trim();
 }
 
 function ignoreReason(ctx) {
-  const message = messagePayload(ctx);
+  const message = ctx.message;
   if (!message) {
     return 'no message';
   }
@@ -110,13 +74,16 @@ export function logForeignGroup(ctx) {
   }
   skipLog.add(key);
   const title = chat.title || '';
-  console.info(`[bridge] saw ${chat.type} ${chat.id}${title ? ` «${title}»` : ''} — set CHAT_ID to this value to relay messages`);
+  console.info(`[bridge] saw ${chat.type} ${chat.id}${title ? ` «${title}»` : ''} — set GROUP_ID to this value if this is the forum group`);
 }
 
 export async function relayTelegramChat(ctx, next) {
-  if (!isRelayChat(ctx.chat?.id)) {
+  if (!isForumGroup(ctx.chat?.id)) {
     logForeignGroup(ctx);
     return next();
+  }
+  if (!isChatTopicMessage(ctx.message)) {
+    return;
   }
 
   const ignored = ignoreReason(ctx);
@@ -125,7 +92,7 @@ export async function relayTelegramChat(ctx, next) {
     return;
   }
 
-  const text = messageText(messagePayload(ctx));
+  const text = messageText(ctx.message);
   if (!text) {
     console.info('[bridge] skip: no text');
     return;

@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 
 import config from '../../config/default.js';
-import { postToChannel, postToGroup } from './channelHelper.js';
+import { postToChat, postToEvents } from './forumHelper.js';
 import {
   chatRelayLine,
   firstJoinText,
@@ -135,21 +135,21 @@ async function forwardLogEvents(telegram, events) {
   console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length}`);
 
   for (const event of serverLifecycle) {
-    await postToChannel(
+    await postToEvents(
       telegram,
       event.type === 'server_up' ? serverStartedText() : serverStoppingText(),
     );
   }
   if (firstJoins.length) {
-    await postToChannel(telegram, firstJoins.map(firstJoinText).join('\n'));
+    await postToEvents(telegram, firstJoins.map(firstJoinText).join('\n'));
   }
   if (nightSkips.length) {
-    await postToChannel(telegram, nightSkipText());
+    await postToEvents(telegram, nightSkipText());
   }
-  await postToGroup(telegram, chatMessages.join('\n'));
-  await postToChannel(telegram, deaths.join('\n'));
-  await postToChannel(telegram, petDeaths.join('\n'));
-  await postToChannel(telegram, advancements.join('\n'), HTML_NO_PREVIEW);
+  await postToChat(telegram, chatMessages.join('\n'));
+  await postToEvents(telegram, deaths.join('\n'));
+  await postToEvents(telegram, petDeaths.join('\n'));
+  await postToEvents(telegram, advancements.join('\n'), HTML_NO_PREVIEW);
   await notifyJoinLeave(telegram, { events: joinLeaveEvents });
 }
 

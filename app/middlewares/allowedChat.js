@@ -1,8 +1,9 @@
 import { canUseBot } from '../helpers/accessHelper.js';
-import { isRelayChat, logForeignGroup } from '../helpers/chatBridgeHelper.js';
+import { isRelayMessage, logForeignGroup } from '../helpers/chatBridgeHelper.js';
+import { isForumGroup, isGeneralTopic } from '../helpers/forumHelper.js';
 
 function isCommand(ctx) {
-  const text = ctx.message?.text || ctx.channelPost?.text || '';
+  const text = ctx.message?.text || '';
   return text.startsWith('/');
 }
 
@@ -21,10 +22,19 @@ export default async function allowedChat(ctx, next) {
   if (canUseBot(ctx)) {
     return next();
   }
-  if (isGroupMessage(ctx) && !isCommand(ctx)) {
-    if (isRelayChat(ctx.chat.id)) {
+  if (!isGroupMessage(ctx)) {
+    return;
+  }
+  if (isForumGroup(ctx.chat.id)) {
+    if (isGeneralTopic(ctx.message)) {
+      return;
+    }
+    if (!isCommand(ctx) && isRelayMessage(ctx)) {
       return next();
     }
+    return;
+  }
+  if (!isCommand(ctx)) {
     logForeignGroup(ctx);
   }
 }

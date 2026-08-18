@@ -1,15 +1,16 @@
 # Minecraft Telegram Bot
 
-Telegram bot for the **artur-petrov** SMP. DMs are the operator console. The channel gets a live world feed: join/leave, chat, deaths, advancements, weather changes, and an hourly online snapshot.
+Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum group gets the live world feed, split by topic: weather, server events, and two-way chat.
 
 ## Features
 
 - DMs are available only to `OWNER_IDS`. Everyone else is ignored
 - World status in DMs: players, time of day, difficulty, TPS
-- Feed in one `CHANNEL_ID` channel: join/leave, in-game chat, deaths, advancements
-- Messages from the `CHAT_ID` group go into Minecraft chat (`Name: text`)
-- Weather changes posted to the channel
-- Once an hour — who is online, if anyone is on the server
+- Weather and moon-phase changes go to the **Погода** topic
+- Joins, leaves, deaths, advancements, TPS, recaps, and other events go to **Події з серверу**
+- In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
+- The General topic (**Головний чат**) is ignored: the bot does not read or write there
+- Once an hour — who is online, if anyone is on the server (events topic)
 - Operator commands: time, weather, whitelist, `/say`, raw RCON
 
 ## Structure
@@ -26,11 +27,11 @@ app/
     serverController.js  # /server, /list
     worldController.js   # /time, /weather, /seed, /difficulty
     adminController.js   # /say, /whitelist, /rcon
-  helpers/               # business logic, channel feed, copy
+  helpers/               # business logic, forum feed, copy
   middlewares/           # ACL and error handling
   classes/
     ServiceSingletons/   # RCON connection
-  constants/             # OWNER_IDS, CHANNEL_ID, CHAT_ID
+  constants/             # OWNER_IDS, GROUP_ID, TOPIC_THREADS
 config/
   default.js             # config from environment variables
 ```
@@ -42,7 +43,7 @@ How to read the code:
 3. The controller reads data from `helpers/` and RCON, replies with copy from `copyHelper.js`
 4. Background jobs (players, log, weather, digest) start in `app/index.js`
 
-Owner, channel, and bridge chat are set in `app/constants/access.js`.
+Owner and forum group are set in `app/constants/access.js`.
 
 ## Installation
 
@@ -59,9 +60,10 @@ cd minecraft-tg-bot
 npm install
 ```
 
-3. Fill in `OWNER_IDS`, `CHANNEL_ID`, and `CHAT_ID` in `app/constants/access.js`.
+3. Fill in `OWNER_IDS` and `GROUP_ID` in `app/constants/access.js`.
    Your id — send `/start` to the bot in DMs (it replies if your id is already in `OWNER_IDS`).
-   Channel/group id — add the bot as admin; logs will show `bot is administrator in channel|supergroup -100…`.
+   Group id — add the bot as admin; logs will show `bot is administrator in supergroup -100…`.
+   Topic ids — copy a topic link (`t.me/c/<chat>/<thread>`) into `TOPIC_THREADS`.
    For the bot to see regular group messages, disable privacy mode in BotFather (`/setprivacy` → Disable) or make the bot a group admin.
 
 4. Set environment variables (Docker, systemd, or the shell). This project does not load a `.env` file.

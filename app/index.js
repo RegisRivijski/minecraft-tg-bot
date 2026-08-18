@@ -1,14 +1,18 @@
 import { Telegraf } from 'telegraf';
 
 import config from '../config/default.js';
-import { CHANNEL_ID, CHAT_ID, OWNER_IDS } from './constants/access.js';
+import { OWNER_IDS } from './constants/access.js';
 import allowedChat from './middlewares/allowedChat.js';
 import errorsHandler from './middlewares/errorsHandler.js';
 import { registerRoutes } from './routes/index.js';
 import { registerBotCommands } from './helpers/telegramCommandsHelper.js';
 import { closeRcon } from './classes/ServiceSingletons/RconSingleton.js';
-import { getChannelId, getGroupChatId } from './helpers/channelHelper.js';
-import { getRelayChatId, resolveRelayChat, warnIfBridgeCannotRead } from './helpers/chatBridgeHelper.js';
+import {
+  getForumSummary,
+  getGroupChatId,
+  warnIfForumMisconfigured,
+} from './helpers/forumHelper.js';
+import { warnIfBridgeCannotRead } from './helpers/chatBridgeHelper.js';
 import { startChannelWatchers } from './helpers/channelWatcherHelper.js';
 import { startPlayerWatcher } from './helpers/playerWatcherHelper.js';
 import { startLogWatcher } from './helpers/logWatcherHelper.js';
@@ -26,14 +30,17 @@ function createBot(apiRoot) {
 }
 
 function printStartupTable(apiRoot) {
+  const forum = getForumSummary();
   console.table({
     Application: config.application.name,
     Version: config.application.version,
     Rcon: `${config.rcon.host}:${config.rcon.port}`,
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
-    Channel: getChannelId() || CHANNEL_ID || '—',
-    Chat: getRelayChatId() || CHAT_ID || '—',
+    Group: forum.group,
+    Weather: forum.weather,
+    Events: forum.events,
+    Chat: forum.chat,
     Log: config.server.logPath,
     LocalApi: Boolean(apiRoot),
   });
@@ -61,11 +68,8 @@ export default async function main() {
   if (!OWNER_IDS.length) {
     console.warn('[acl] OWNER_IDS is empty — fill app/constants/access.js');
   }
-  if (!getChannelId()) {
-    console.warn('[channel] CHANNEL_ID is empty — fill app/constants/access.js');
-  }
   if (!getGroupChatId()) {
-    console.warn('[group] CHAT_ID is empty — fill app/constants/access.js');
+    console.warn('[forum] GROUP_ID is empty — fill app/constants/access.js');
   }
 
   const apiRoot = buildTelegramApiRoot();
@@ -78,7 +82,7 @@ export default async function main() {
     console.error('[telegraf]', error.code || error.message);
   });
 
-  await resolveRelayChat(bot.telegram);
+  await warnIfForumMisconfigured(bot.telegram);
   await warnIfBridgeCannotRead(bot.telegram);
   await initWorldStats();
 
