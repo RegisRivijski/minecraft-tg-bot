@@ -41,7 +41,7 @@ export function noPermission() {
 
 export function serverMenu({
   list, daytime, weather, difficulty, tps, tpsWindows,
-  seed, moon, whitelist, gamerules, events, stats,
+  seed, moon, whitelist, gamerules, stats,
 }) {
   const lines = [
     `<b>${escapeHtml(config.server.motd)}</b>`,
@@ -81,9 +81,6 @@ export function serverMenu({
   }
   if (seed) {
     lines.push(`Зерно: <code>${escapeHtml(seed)}</code>`);
-  }
-  if (events?.length) {
-    lines.push(`Сейчас: ${events.map((event) => escapeHtml(event.label)).join(' · ')}`);
   }
 
   const ruleLine = formatGameruleLine(gamerules);
@@ -463,20 +460,6 @@ export function emptyWorldText({ sinceLabel, hours, days }) {
   }
   const duration = hours === 1 ? '1 ч' : `${hours} ч`;
   return `Мир пуст с ${escapeHtml(sinceLabel)} (уже ${duration}).`;
-}
-
-export function worldSpecialText(key, started) {
-  const copy = {
-    raid: ['Начался рейд.', 'Рейд закончился.'],
-    dragon: ['Пробудился Эндер-дракон.', 'Эндер-дракон побеждён.'],
-    wither: ['Призван Визер.', 'Визер побеждён.'],
-    warden: ['Пробудился Хранитель.', 'Хранитель исчез.'],
-  };
-  const pair = copy[key];
-  if (!pair) {
-    return '';
-  }
-  return started ? pair[0] : pair[1];
 }
 
 export function dailyRecapText({ dateLabel, players, deaths, advancements }) {

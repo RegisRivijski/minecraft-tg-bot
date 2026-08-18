@@ -92,7 +92,6 @@ export async function fetchServer() {
     moon,
     whitelistRaw,
     gamerules,
-    events,
   ] = await Promise.all([
     rconSend('list'),
     queryDaytimeTicks(),
@@ -103,7 +102,6 @@ export async function fetchServer() {
     fetchMoon().catch(() => null),
     rconSend('whitelist list').catch(() => ''),
     queryGamerules().catch(() => ({})),
-    queryWorldEvents().catch(() => []),
   ]);
 
   const tpsWindows = parseTpsWindows(tpsRaw);
@@ -118,7 +116,6 @@ export async function fetchServer() {
     moon,
     whitelist: parseWhitelistList(whitelistRaw),
     gamerules,
-    events,
     stats: ownerWorldStats(),
   };
 }
@@ -141,46 +138,6 @@ export async function fetchMoon() {
   return describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY));
 }
 
-export async function queryPresent(commands) {
-  for (const command of commands) {
-    const raw = await rconSend(command).catch(() => '');
-    const result = parseWeatherCheck(raw);
-    if (result === true) {
-      return true;
-    }
-    if (result === false) {
-      return false;
-    }
-  }
-  return null;
-}
-
-export const WORLD_EVENT_CHECKS = [
-  {
-    key: 'raid',
-    label: 'Рейд',
-    commands: [
-      'execute as @e[type=#minecraft:raiders,limit=1] if data entity @s RaidId',
-      'execute if entity @e[type=minecraft:ravager,limit=1]',
-    ],
-  },
-  {
-    key: 'dragon',
-    label: 'Эндер-дракон',
-    commands: ['execute if entity @e[type=minecraft:ender_dragon,limit=1]'],
-  },
-  {
-    key: 'wither',
-    label: 'Визер',
-    commands: ['execute if entity @e[type=minecraft:wither,limit=1]'],
-  },
-  {
-    key: 'warden',
-    label: 'Хранитель',
-    commands: ['execute if entity @e[type=minecraft:warden,limit=1]'],
-  },
-];
-
 const OWNER_GAMERULES = [
   'keepInventory',
   'mobGriefing',
@@ -197,12 +154,4 @@ async function queryGamerules() {
     return [name, parseGamerule(raw)];
   }));
   return Object.fromEntries(entries);
-}
-
-export async function queryWorldEvents() {
-  const found = await Promise.all(WORLD_EVENT_CHECKS.map(async (event) => {
-    const present = await queryPresent(event.commands);
-    return present ? event : null;
-  }));
-  return found.filter(Boolean);
 }

@@ -49,7 +49,6 @@ export default {
     dailyRecapHour: Number(process.env.MINECRAFT_DAILY_RECAP_HOUR || 21),
     weeklyRecapWeekday: Number(process.env.MINECRAFT_WEEKLY_RECAP_WEEKDAY || 0),
     recapPollMs: Number(process.env.MINECRAFT_RECAP_POLL_MS || 30000),
-    worldEventPollMs: Number(process.env.MINECRAFT_WORLD_EVENT_POLL_MS || 15000),
     timeZone: process.env.MINECRAFT_TZ || 'Europe/Kyiv',
     statsPath: process.env.MINECRAFT_STATS_PATH || path.join(serverRoot, 'tg-bot-stats.json'),
     usercachePath: process.env.MINECRAFT_USERCACHE_PATH || path.join(serverRoot, 'usercache.json'),
