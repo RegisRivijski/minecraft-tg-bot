@@ -165,9 +165,13 @@ async function readJson(file) {
   }
 }
 
-function parseMoonPosted(raw) {
+function moonPhasePath() {
+  return path.join(path.dirname(config.server.statsPath), 'tg-bot-moon.json');
+}
+
+function moonKeyFrom(raw) {
   const key = String(raw?.key || '');
-  return key ? { key } : null;
+  return key || null;
 }
 
 function mergeLoaded(raw) {
@@ -198,7 +202,8 @@ function mergeLoaded(raw) {
   next.lastDailyPosted = raw.lastDailyPosted || null;
   next.lastWeeklyPosted = raw.lastWeeklyPosted || null;
   next.lastDigestPosted = raw.lastDigestPosted || null;
-  next.lastMoonPosted = parseMoonPosted(raw.lastMoonPosted);
+  const moonKey = moonKeyFrom(raw.lastMoonPosted);
+  next.lastMoonPosted = moonKey ? { key: moonKey } : null;
   next.sessions = {};
   return next;
 }
@@ -390,17 +395,38 @@ export function markOnlineDigestPosted(parts = zonedParts()) {
   scheduleSave();
 }
 
-export function takeMoonAnnouncement(moon, notable) {
+async function readMoonKey() {
+  const fromFile = moonKeyFrom(await readJson(moonPhasePath()));
+  if (fromFile) {
+    return fromFile;
+  }
+  return state.lastMoonPosted?.key || null;
+}
+
+async function writeMoonKey(key) {
+  const file = moonPhasePath();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp`;
+  await fs.writeFile(tmp, `${JSON.stringify({ key }, null, 2)}\n`);
+  await fs.rename(tmp, file);
+  state.lastMoonPosted = { key };
+}
+
+export async function takeMoonAnnouncement(moon, notable) {
   if (!moon?.key) {
     return false;
   }
-  const previous = state.lastMoonPosted?.key;
+  const previous = await readMoonKey();
   if (previous === moon.key) {
     return false;
   }
-  state.lastMoonPosted = { key: moon.key };
-  scheduleSave();
-  return previous != null && Boolean(notable);
+  await writeMoonKey(moon.key);
+  if (!previous) {
+    console.info(`[moon] stored ${moon.key}`);
+    return false;
+  }
+  console.info(`[moon] ${previous} → ${moon.key}`);
+  return Boolean(notable);
 }
 
 export function takeEmptyWorldAnnouncement(now = Date.now()) {

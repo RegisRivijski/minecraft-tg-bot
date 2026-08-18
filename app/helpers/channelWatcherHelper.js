@@ -195,7 +195,7 @@ function startMoonWatcher(telegram) {
     inFlight = true;
     try {
       const moon = await fetchMoon();
-      if (!takeMoonAnnouncement(moon, isNotableMoonPhase(moon))) {
+      if (!await takeMoonAnnouncement(moon, isNotableMoonPhase(moon))) {
         return;
       }
       const [{ daytime }, listRaw] = await Promise.all([

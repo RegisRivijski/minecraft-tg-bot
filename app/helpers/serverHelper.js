@@ -104,28 +104,12 @@ export async function queryTps() {
   return parseTps(await rconSend('tps').catch(() => ''));
 }
 
-function moonDayNumber(dayQuery, gametime) {
-  const fromGame = gametime == null ? null : Math.floor(gametime / TICKS_PER_DAY);
-  if (dayQuery == null) {
-    return fromGame;
-  }
-  // `time query day` must be a day count. Some servers echo ticks instead.
-  if (dayQuery >= TICKS_PER_DAY) {
-    const fromTicks = Math.floor(dayQuery / TICKS_PER_DAY);
-    if (fromGame == null || Math.abs(fromTicks - fromGame) <= 1) {
-      return fromTicks;
-    }
-    return fromGame;
-  }
-  return dayQuery;
-}
-
 export async function fetchMoon() {
-  const [dayRaw, gameRaw] = await Promise.all([
-    rconSend('time query day').catch(() => ''),
-    rconSend('time query gametime').catch(() => ''),
-  ]);
-  return describeMoonPhase(moonDayNumber(parseTimeQuery(dayRaw), parseTimeQuery(gameRaw)));
+  const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
+  if (gametime == null) {
+    return null;
+  }
+  return describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY));
 }
 
 export async function queryPresent(commands) {
