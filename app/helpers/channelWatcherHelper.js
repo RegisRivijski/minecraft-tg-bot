@@ -62,14 +62,15 @@ function startWeatherWatcher(telegram) {
       }
       const previous = describeWeather(previousKey);
       previousKey = weather.key;
-      const [{ daytime }, listRaw] = await Promise.all([
+      const [{ daytime }, listRaw, moon] = await Promise.all([
         fetchTime(),
         rconSend('list'),
+        fetchMoon(),
       ]);
       console.info(`[weather] ${previous?.key || '—'} → ${weather.key}`);
       await postWeatherChange(
         telegram,
-        weatherChangedText(previous, weather, daytime, parsePlayerList(listRaw)),
+        weatherChangedText(previous, weather, daytime, parsePlayerList(listRaw), moon),
         weather.key,
         daytime,
       );

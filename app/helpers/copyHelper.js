@@ -261,9 +261,12 @@ export function onlinePlayersText(list) {
   return `Игроки (${list.online}/${list.max}): ${formatPlayerNames(list.players)}`;
 }
 
-function appendWorldContext(lines, daytime, list) {
+function appendWorldContext(lines, daytime, list, moon) {
   if (daytime?.label) {
     lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
+  }
+  if (moon) {
+    lines.push(`${moon.icon} ${escapeHtml(moon.label)}`);
   }
   const players = onlinePlayersText(list);
   if (players) {
@@ -271,7 +274,7 @@ function appendWorldContext(lines, daytime, list) {
   }
 }
 
-export function weatherChangedText(previous, current, daytime, list) {
+export function weatherChangedText(previous, current, daytime, list, moon) {
   if (!current) {
     return '';
   }
@@ -279,7 +282,7 @@ export function weatherChangedText(previous, current, daytime, list) {
     ? `${current.icon} · <b>${escapeHtml(current.label)}</b>`
     : `${previous.icon} → ${current.icon} · <b>${escapeHtml(current.label)}</b>`;
   const lines = [weatherLine];
-  appendWorldContext(lines, daytime, list);
+  appendWorldContext(lines, daytime, list, moon);
   return lines.join('\n');
 }
 
