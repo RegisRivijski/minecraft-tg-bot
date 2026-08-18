@@ -123,11 +123,11 @@ export function describeDaytime(ticks) {
     phase = 'sunset';
   } else if (dayTicks < 18000) {
     name = 'Ночь';
-    icon = '🌙';
+    icon = '🌃';
     phase = 'night';
   } else {
     name = 'Полночь';
-    icon = '🌑';
+    icon = '🌌';
     phase = 'midnight';
   }
 
