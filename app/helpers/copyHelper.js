@@ -297,7 +297,25 @@ export function moonPhaseText(moon, daytime, list) {
   return lines.join('\n');
 }
 
-export function emptyWorldText({ sinceLabel, hours }) {
+function formatDays(count) {
+  const n = Math.max(1, Number(count) || 1);
+  const n10 = n % 10;
+  const n100 = n % 100;
+  let word = 'дней';
+  if (n100 < 11 || n100 > 14) {
+    if (n10 === 1) {
+      word = 'день';
+    } else if (n10 >= 2 && n10 <= 4) {
+      word = 'дня';
+    }
+  }
+  return `${n} ${word}`;
+}
+
+export function emptyWorldText({ sinceLabel, hours, days }) {
+  if (days) {
+    return `Никто не заходил уже ${formatDays(days)} (пусто с ${escapeHtml(sinceLabel)}).`;
+  }
   const duration = hours === 1 ? '1 ч' : `${hours} ч`;
   return `Мир пуст с ${escapeHtml(sinceLabel)} (уже ${duration}).`;
 }
@@ -316,16 +334,13 @@ export function worldSpecialText(key, started) {
   return started ? pair[0] : pair[1];
 }
 
-export function dailyRecapText({ dateLabel, players, deaths, advancements, moon }) {
+export function dailyRecapText({ dateLabel, players, deaths, advancements }) {
   const lines = [`<b>Итоги дня</b> · ${escapeHtml(dateLabel)}`];
   lines.push(players.length
     ? `Заходили: ${formatPlayerNames(players)}`
     : 'Сегодня никто не заходил.');
   lines.push(`Смертей: <b>${deaths}</b>`);
   lines.push(`Достижений: <b>${advancements}</b>`);
-  if (moon?.label) {
-    lines.push('', `${moon.icon} ${escapeHtml(moon.label)}`);
-  }
   return lines.join('\n');
 }
 

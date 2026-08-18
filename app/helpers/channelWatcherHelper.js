@@ -321,16 +321,15 @@ function startScheduleWatcher(telegram) {
     try {
       const empty = takeEmptyWorldAnnouncement();
       if (empty) {
-        console.info(`[empty] world empty for ${empty.hours}h`);
+        console.info(`[empty] ${empty.days ? `${empty.days}d` : `${empty.hours}h`}`);
         await postToChannel(telegram, emptyWorldText(empty));
       }
 
       const parts = zonedParts();
       const daily = takeDailyRecap(parts);
       if (daily) {
-        const moon = await fetchMoon().catch(() => null);
         console.info(`[recap] daily players=${daily.players.length} deaths=${daily.deaths}`);
-        await postToChannel(telegram, dailyRecapText({ ...daily, moon }));
+        await postToChannel(telegram, dailyRecapText(daily));
       }
 
       const weekly = takeWeeklyRecap(parts);
@@ -347,7 +346,7 @@ function startScheduleWatcher(telegram) {
 
   timer = setInterval(pollSchedule, config.server.recapPollMs);
   pollSchedule();
-  console.info(`[schedule] daily ${config.server.dailyRecapHour}:00 ${config.server.timeZone}, empty after ${config.server.emptyWorldMs}ms`);
+  console.info(`[schedule] daily ${config.server.dailyRecapHour}:00 ${config.server.timeZone}, empty at ${config.server.emptyWorldHours.join('/')}h then daily`);
 
   return () => {
     if (timer) {

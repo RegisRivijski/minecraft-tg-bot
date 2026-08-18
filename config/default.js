@@ -42,7 +42,10 @@ export default {
     tpsAlertBelow: Number(process.env.MINECRAFT_TPS_ALERT_BELOW || 15),
     tpsRecoverAt: Number(process.env.MINECRAFT_TPS_RECOVER_AT || 18),
     moonPollMs: Number(process.env.MINECRAFT_MOON_POLL_MS || 30000),
-    emptyWorldMs: Number(process.env.MINECRAFT_EMPTY_WORLD_MS || 3 * 60 * 60 * 1000),
+    emptyWorldHours: String(process.env.MINECRAFT_EMPTY_WORLD_HOURS || '3,9,18')
+      .split(',')
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0),
     dailyRecapHour: Number(process.env.MINECRAFT_DAILY_RECAP_HOUR || 21),
     weeklyRecapWeekday: Number(process.env.MINECRAFT_WEEKLY_RECAP_WEEKDAY || 0),
     recapPollMs: Number(process.env.MINECRAFT_RECAP_POLL_MS || 30000),

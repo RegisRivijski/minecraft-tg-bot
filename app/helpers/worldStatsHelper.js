@@ -71,13 +71,17 @@ function emptyWeek(key) {
   };
 }
 
+function emptyWorldState() {
+  return { since: null, notifiedHours: [], lastEmptyDayPosted: null };
+}
+
 function blankState() {
   const parts = zonedParts();
   return {
     knownPlayers: {},
     day: emptyDay(dateKey(parts)),
     week: emptyWeek(isoWeekKey(parts)),
-    empty: { since: null, notifiedAt: null },
+    empty: emptyWorldState(),
     lastDailyPosted: null,
     lastWeeklyPosted: null,
     lastDigestPosted: null,
@@ -194,9 +198,13 @@ function mergeLoaded(raw) {
     next.week = { ...emptyWeek(raw.week.key), ...raw.week };
   }
   if (raw.empty && typeof raw.empty === 'object') {
+    const hours = Array.isArray(raw.empty.notifiedHours)
+      ? raw.empty.notifiedHours.map(Number).filter((value) => Number.isFinite(value) && value > 0)
+      : (raw.empty.notifiedAt ? [3] : []);
     next.empty = {
       since: raw.empty.since || null,
-      notifiedAt: raw.empty.notifiedAt || null,
+      notifiedHours: hours,
+      lastEmptyDayPosted: raw.empty.lastEmptyDayPosted || null,
     };
   }
   next.lastDailyPosted = raw.lastDailyPosted || null;
@@ -312,8 +320,7 @@ export function recordPlayerSnapshot(players = []) {
           markJoined(name);
         }
         if (current.size > 0) {
-          state.empty.since = null;
-          state.empty.notifiedAt = null;
+          state.empty = emptyWorldState();
         }
         previousOnline = current;
         scheduleSave();
@@ -340,12 +347,10 @@ export function recordPlayerSnapshot(players = []) {
   }
 
   if (previousOnline.size > 0 && current.size === 0) {
-    state.empty.since = now;
-    state.empty.notifiedAt = null;
+    state.empty = { ...emptyWorldState(), since: now };
   }
   if (previousOnline.size === 0 && current.size > 0) {
-    state.empty.since = null;
-    state.empty.notifiedAt = null;
+    state.empty = emptyWorldState();
   }
 
   previousOnline = current;
@@ -429,19 +434,11 @@ export async function takeMoonAnnouncement(moon, notable) {
   return Boolean(notable);
 }
 
-export function takeEmptyWorldAnnouncement(now = Date.now()) {
-  rotateBucketsIfNeeded();
-  const since = state.empty?.since;
-  if (!since || state.empty.notifiedAt) {
-    return null;
-  }
-  if (now - since < config.server.emptyWorldMs) {
-    return null;
-  }
-  state.empty.notifiedAt = now;
-  scheduleSave();
-  const hours = Math.max(1, Math.floor((now - since) / 3600000));
-  const sinceLabel = new Intl.DateTimeFormat('ru-RU', {
+const HOUR_MS = 3600000;
+const DAY_MS = 24 * HOUR_MS;
+
+function emptySinceLabel(since) {
+  return new Intl.DateTimeFormat('ru-RU', {
     timeZone: timeZone(),
     day: 'numeric',
     month: 'short',
@@ -449,7 +446,48 @@ export function takeEmptyWorldAnnouncement(now = Date.now()) {
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(new Date(since));
-  return { since, sinceLabel, hours };
+}
+
+function emptyHourMilestones() {
+  const hours = config.server.emptyWorldHours;
+  return (hours?.length ? hours : [3, 9, 18]).slice().sort((left, right) => left - right);
+}
+
+export function takeEmptyWorldAnnouncement(now = Date.now(), parts = zonedParts()) {
+  rotateBucketsIfNeeded();
+  const since = state.empty?.since;
+  if (!since) {
+    return null;
+  }
+
+  const elapsed = now - since;
+  const notifiedHours = Array.isArray(state.empty.notifiedHours) ? state.empty.notifiedHours : [];
+  const reached = emptyHourMilestones().filter((hours) => elapsed >= hours * HOUR_MS);
+  const pending = reached.filter((hours) => !notifiedHours.includes(hours));
+  if (pending.length) {
+    const hours = pending[pending.length - 1];
+    state.empty.notifiedHours = [...new Set([...notifiedHours, ...pending])];
+    scheduleSave();
+    return { since, sinceLabel: emptySinceLabel(since), hours };
+  }
+
+  if (elapsed < DAY_MS) {
+    return null;
+  }
+  if (Number(parts.hour) !== Number(config.server.dailyRecapHour)) {
+    return null;
+  }
+  const today = dateKey(parts);
+  if (state.empty.lastEmptyDayPosted === today) {
+    return null;
+  }
+  state.empty.lastEmptyDayPosted = today;
+  scheduleSave();
+  return {
+    since,
+    sinceLabel: emptySinceLabel(since),
+    days: Math.max(1, Math.floor(elapsed / DAY_MS)),
+  };
 }
 
 export function takeDailyRecap(parts = zonedParts()) {
