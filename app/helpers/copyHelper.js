@@ -69,15 +69,15 @@ export function serverMenu({
   appendPlayers(lines, list, stats);
 
   lines.push('');
-  if (daytime?.label) {
-    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
-  }
   if (weather) {
     lines.push(`${weather.icon} · ${escapeHtml(weather.label)}`);
   }
   if (moon) {
     const day = Number.isFinite(moon.day) ? ` · день ${moon.day}` : '';
     lines.push(`${moon.icon} ${escapeHtml(moon.label)}${day}`);
+  }
+  if (daytime?.label) {
+    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
   }
   if (seed) {
     lines.push(`Зерно: <code>${escapeHtml(seed)}</code>`);
@@ -288,8 +288,8 @@ function formatWeatherLine(weather, previous) {
 function worldStatusLines({ moon, daytime, weather, previousWeather } = {}) {
   return [
     formatWeatherLine(weather, previousWeather),
-    formatTimeLine(daytime),
     formatMoonLine(moon),
+    formatTimeLine(daytime),
   ].filter(Boolean);
 }
 
