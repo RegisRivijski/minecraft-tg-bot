@@ -412,14 +412,14 @@ export function joinLeaveText(events, current) {
 }
 
 export function onlineDigestText({ list, daytime, weather, moon }) {
-  const lines = [
+  const lines = worldStatusLines({ moon, daytime, weather });
+  if (lines.length) {
+    lines.push('');
+  }
+  lines.push(
     `<b>На сервере ${list.online} из ${list.max}</b>`,
     formatPlayerNames(list.players),
-  ];
-  const status = worldStatusLines({ moon, daytime, weather });
-  if (status.length) {
-    lines.push('', ...status);
-  }
+  );
   return lines.join('\n');
 }
 
