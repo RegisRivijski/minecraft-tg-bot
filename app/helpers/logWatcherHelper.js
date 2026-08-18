@@ -22,7 +22,7 @@ import {
   parseWorldEventLine,
 } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
-import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin } from './worldStatsHelper.js';
+import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin, recordLeave } from './worldStatsHelper.js';
 import { translateDeathMessage } from './langHelper.js';
 
 const MAX_READ_BYTES = 512 * 1024;
@@ -78,6 +78,8 @@ function classifyLogLines(lines) {
       joinLeaveEvents.push(joinLeave);
       if (joinLeave.type === 'join') {
         recordJoin(joinLeave.name);
+      } else {
+        recordLeave(joinLeave.name);
       }
       continue;
     }

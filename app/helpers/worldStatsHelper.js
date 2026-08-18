@@ -94,6 +94,38 @@ function normalizeUuid(uuid) {
   return String(uuid || '').toLowerCase().replace(/-/g, '');
 }
 
+function playerName(name) {
+  return String(name || '').trim();
+}
+
+function ensurePlayMaps() {
+  if (!state.day || typeof state.day !== 'object') {
+    state.day = emptyDay(dateKey());
+  }
+  if (!state.day.playMs || typeof state.day.playMs !== 'object' || Array.isArray(state.day.playMs)) {
+    state.day.playMs = {};
+  }
+  if (!state.week || typeof state.week !== 'object') {
+    state.week = emptyWeek(isoWeekKey());
+  }
+  if (!state.week.playMs || typeof state.week.playMs !== 'object' || Array.isArray(state.week.playMs)) {
+    state.week.playMs = {};
+  }
+  if (!state.sessions || typeof state.sessions !== 'object' || Array.isArray(state.sessions)) {
+    state.sessions = {};
+  }
+}
+
+function addPlayMs(name, delta) {
+  const ms = Math.max(0, Number(delta) || 0);
+  if (!name || !ms) {
+    return;
+  }
+  ensurePlayMaps();
+  state.day.playMs[name] = (Number(state.day.playMs[name]) || 0) + ms;
+  state.week.playMs[name] = (Number(state.week.playMs[name]) || 0) + ms;
+}
+
 function rotateBucketsIfNeeded() {
   const parts = zonedParts();
   const today = dateKey(parts);
@@ -112,16 +144,46 @@ function rotateBucketsIfNeeded() {
 }
 
 function foldOpenSessions(now = Date.now()) {
-  for (const [name, started] of Object.entries(state.sessions || {})) {
-    const delta = Math.max(0, now - started);
-    state.day.playMs[name] = (state.day.playMs[name] || 0) + delta;
-    state.week.playMs[name] = (state.week.playMs[name] || 0) + delta;
+  ensurePlayMaps();
+  for (const [name, started] of Object.entries(state.sessions)) {
+    addPlayMs(name, now - Number(started));
     state.sessions[name] = now;
   }
 }
 
+function openSession(name, now = Date.now()) {
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  ensurePlayMaps();
+  if (state.sessions[key] == null) {
+    state.sessions[key] = now;
+  }
+}
+
+function closeSession(name, now = Date.now()) {
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  ensurePlayMaps();
+  const started = state.sessions[key];
+  if (started == null) {
+    return;
+  }
+  addPlayMs(key, now - Number(started));
+  delete state.sessions[key];
+}
+
 function markJoined(name) {
-  const key = String(name);
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  if (!state.day.joined || typeof state.day.joined !== 'object') {
+    state.day.joined = {};
+  }
   state.day.joined[key] = true;
 }
 
@@ -178,6 +240,22 @@ function moonKeyFrom(raw) {
   return key || null;
 }
 
+function asCountMap(raw) {
+  const result = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return result;
+  }
+  for (const [key, value] of Object.entries(raw)) {
+    const name = playerName(key);
+    const amount = Number(value);
+    if (!name || !Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+    result[name] = amount;
+  }
+  return result;
+}
+
 function mergeLoaded(raw) {
   const next = blankState();
   if (!raw || typeof raw !== 'object') {
@@ -192,10 +270,22 @@ function mergeLoaded(raw) {
     }
   }
   if (raw.day?.key) {
-    next.day = { ...emptyDay(raw.day.key), ...raw.day };
+    next.day = {
+      ...emptyDay(raw.day.key),
+      ...raw.day,
+      joined: raw.day.joined && typeof raw.day.joined === 'object' ? raw.day.joined : {},
+      deaths: asCountMap(raw.day.deaths),
+      advancements: asCountMap(raw.day.advancements),
+      playMs: asCountMap(raw.day.playMs),
+    };
   }
   if (raw.week?.key) {
-    next.week = { ...emptyWeek(raw.week.key), ...raw.week };
+    next.week = {
+      ...emptyWeek(raw.week.key),
+      ...raw.week,
+      deaths: asCountMap(raw.week.deaths),
+      playMs: asCountMap(raw.week.playMs),
+    };
   }
   if (raw.empty && typeof raw.empty === 'object') {
     const hours = Array.isArray(raw.empty.notifiedHours)
@@ -281,11 +371,23 @@ export function notePlayerUuid(uuid, name) {
 }
 
 export function recordJoin(name) {
-  if (!name) {
+  const key = playerName(name);
+  if (!key) {
     return;
   }
   rotateBucketsIfNeeded();
-  markJoined(name);
+  markJoined(key);
+  openSession(key);
+  scheduleSave();
+}
+
+export function recordLeave(name) {
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  rotateBucketsIfNeeded();
+  closeSession(key);
   scheduleSave();
 }
 
@@ -310,46 +412,30 @@ export function recordAdvancement(name) {
 
 export function recordPlayerSnapshot(players = []) {
   rotateBucketsIfNeeded();
+  ensurePlayMaps();
   const now = Date.now();
-  const current = new Set(players.map(String));
-  state.sessions = state.sessions || {};
+  const current = new Set(players.map(playerName).filter(Boolean));
+  const previous = previousOnline ?? new Set();
 
-      if (previousOnline == null) {
-        for (const name of current) {
-          state.sessions[name] = now;
-          markJoined(name);
-        }
-        if (current.size > 0) {
-          state.empty = emptyWorldState();
-        }
-        previousOnline = current;
-        scheduleSave();
-        return;
-      }
-
+  for (const name of previous) {
+    if (!current.has(name)) {
+      closeSession(name, now);
+    }
+  }
   for (const name of current) {
-    if (!previousOnline.has(name)) {
-      state.sessions[name] = now;
-      markJoined(name);
-    }
+    openSession(name, now);
+    markJoined(name);
   }
-  for (const name of previousOnline) {
-    if (current.has(name)) {
-      continue;
-    }
-    const started = state.sessions[name];
-    if (started) {
-      const delta = Math.max(0, now - started);
-      state.day.playMs[name] = (state.day.playMs[name] || 0) + delta;
-      state.week.playMs[name] = (state.week.playMs[name] || 0) + delta;
-      delete state.sessions[name];
-    }
-  }
+  foldOpenSessions(now);
 
-  if (previousOnline.size > 0 && current.size === 0) {
-    state.empty = { ...emptyWorldState(), since: now };
-  }
-  if (previousOnline.size === 0 && current.size > 0) {
+  if (previousOnline != null) {
+    if (previous.size > 0 && current.size === 0) {
+      state.empty = { ...emptyWorldState(), since: now };
+    }
+    if (previous.size === 0 && current.size > 0) {
+      state.empty = emptyWorldState();
+    }
+  } else if (current.size > 0) {
     state.empty = emptyWorldState();
   }
 
@@ -378,7 +464,8 @@ function playMsWithOpenSessions(playMs) {
   const now = Date.now();
   const result = { ...playMs };
   for (const [name, started] of Object.entries(state.sessions || {})) {
-    result[name] = (result[name] || 0) + Math.max(0, now - started);
+    const key = playerName(name);
+    result[key] = (Number(result[key]) || 0) + Math.max(0, now - Number(started));
   }
   return result;
 }
@@ -552,10 +639,11 @@ export function ownerWorldStats() {
   const now = Date.now();
   const joined = Object.keys(state.day.joined || {})
     .sort((left, right) => left.localeCompare(right));
+  const playToday = playMsWithOpenSessions(state.day.playMs);
   const sessions = Object.fromEntries(
-    Object.entries(state.sessions || {}).map(([name, started]) => [
+    Object.keys(state.sessions || {}).map((name) => [
       name,
-      formatDuration(Math.max(0, now - started)),
+      formatDuration(playToday[name] || Math.max(0, now - Number(state.sessions[name] || now))),
     ]),
   );
   const emptySince = state.empty?.since;

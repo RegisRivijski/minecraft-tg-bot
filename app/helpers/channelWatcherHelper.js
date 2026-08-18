@@ -102,17 +102,23 @@ function startOnlineDigest(telegram) {
     }
     inFlight = true;
     try {
-      const [listRaw, { daytime }, weather] = await Promise.all([
+      const [listRaw, { daytime }, weather, moon] = await Promise.all([
         rconSend('list'),
         fetchTime(),
         queryWeather(),
+        fetchMoon(),
       ]);
       const list = parsePlayerList(listRaw);
       if (!list.ok || !list.players.length) {
         return;
       }
       console.info(`[digest] ${list.online} online`);
-      await postToChannel(telegram, onlineDigestText({ list, daytime, weather }));
+      await postWeatherChange(
+        telegram,
+        onlineDigestText({ list, daytime, weather, moon }),
+        weather?.key,
+        daytime,
+      );
       markOnlineDigestPosted();
     } catch (err) {
       console.warn('[digest]', err.message);

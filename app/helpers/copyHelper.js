@@ -124,7 +124,7 @@ function appendPlayers(lines, list, stats) {
   if (list.players.length) {
     for (const name of list.players) {
       const session = stats?.sessions?.[name];
-      lines.push(session ? `${formatPlayerName(name)} · ${escapeHtml(session)}` : formatPlayerName(name));
+      lines.push(session ? `${formatPlayerName(name)} · сегодня ${escapeHtml(session)}` : formatPlayerName(name));
     }
     return;
   }
@@ -383,7 +383,7 @@ export function joinLeaveText(events, current) {
   return lines.join('\n');
 }
 
-export function onlineDigestText({ list, daytime, weather }) {
+export function onlineDigestText({ list, daytime, weather, moon }) {
   const lines = [
     `<b>На сервере ${list.online} из ${list.max}</b>`,
     formatPlayerNames(list.players),
@@ -392,7 +392,10 @@ export function onlineDigestText({ list, daytime, weather }) {
     lines.push('', `${daytime.icon} ${daytime.label}`);
   }
   if (weather) {
-    lines.push(`${weather.icon} ${escapeHtml(weather.label)}`);
+    lines.push(`${weather.icon} · ${escapeHtml(weather.label)}`);
+  }
+  if (moon) {
+    lines.push(`${moon.icon} ${escapeHtml(moon.label)}`);
   }
   return lines.join('\n');
 }
