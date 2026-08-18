@@ -6,10 +6,24 @@ import { fileURLToPath } from 'node:url';
 import { CHANNEL_ID, CHAT_ID } from '../constants/access.js';
 import { HTML } from './copyHelper.js';
 
+function weatherAsset(name) {
+  return fileURLToPath(new URL(`../assets/weather/${name}.jpg`, import.meta.url));
+}
+
 const WEATHER_IMAGES = {
-  clear: fileURLToPath(new URL('../assets/weather/clear.jpg', import.meta.url)),
-  rain: fileURLToPath(new URL('../assets/weather/rain.jpg', import.meta.url)),
-  thunder: fileURLToPath(new URL('../assets/weather/thunder.jpg', import.meta.url)),
+  clear: weatherAsset('clear'),
+  rain: weatherAsset('rain'),
+  thunder: weatherAsset('thunder'),
+};
+
+const CLEAR_PHASE_IMAGES = {
+  sunrise: weatherAsset('clear-sunrise'),
+  morning: weatherAsset('clear-morning'),
+  noon: weatherAsset('clear-noon'),
+  day: weatherAsset('clear'),
+  sunset: weatherAsset('clear-sunset'),
+  night: weatherAsset('clear-night'),
+  midnight: weatherAsset('clear-midnight'),
 };
 
 const MOON_IMAGES = {
@@ -55,7 +69,13 @@ async function imagePath(map, key) {
   }
 }
 
-function weatherImagePath(key) {
+async function weatherImagePath(key, phase) {
+  if (key === 'clear') {
+    const timed = await imagePath(CLEAR_PHASE_IMAGES, phase);
+    if (timed) {
+      return timed;
+    }
+  }
   return imagePath(WEATHER_IMAGES, key);
 }
 
@@ -121,8 +141,8 @@ export async function postPhotoToChannel(telegram, photoPath, caption, extra = H
   }
 }
 
-export async function postWeatherChange(telegram, caption, weatherKey) {
-  const image = await weatherImagePath(weatherKey);
+export async function postWeatherChange(telegram, caption, weatherKey, daytime) {
+  const image = await weatherImagePath(weatherKey, daytime?.phase);
   if (image) {
     await postPhotoToChannel(telegram, image, caption);
     return;

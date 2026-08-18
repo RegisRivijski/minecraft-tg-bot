@@ -74,6 +74,7 @@ function startWeatherWatcher(telegram) {
         telegram,
         weatherChangedText(previous, weather, daytime, parsePlayerList(listRaw)),
         weather.key,
+        daytime,
       );
     } catch (err) {
       console.warn('[weather]', err.message);
