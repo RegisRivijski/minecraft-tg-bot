@@ -69,16 +69,7 @@ export function serverMenu({
   appendPlayers(lines, list, stats);
 
   lines.push('');
-  if (weather) {
-    lines.push(`${weather.icon} · ${escapeHtml(weather.label)}`);
-  }
-  if (moon) {
-    const day = Number.isFinite(moon.day) ? ` · день ${moon.day}` : '';
-    lines.push(`${moon.icon} ${escapeHtml(moon.label)}${day}`);
-  }
-  if (daytime?.label) {
-    lines.push(`${daytime.icon} ${escapeHtml(daytime.label)}`);
-  }
+  lines.push(...worldStatusLines({ weather, moon, daytime }));
   if (seed) {
     lines.push(`Зерно: <code>${escapeHtml(seed)}</code>`);
   }
@@ -265,7 +256,8 @@ function formatMoonLine(moon) {
   if (!moon) {
     return null;
   }
-  return `${moon.icon} ${escapeHtml(moon.label)}`;
+  const day = Number.isFinite(moon.day) ? ` · день ${moon.day}` : '';
+  return `${moon.icon} ${escapeHtml(moon.label)}${day}`;
 }
 
 function formatTimeLine(daytime) {
