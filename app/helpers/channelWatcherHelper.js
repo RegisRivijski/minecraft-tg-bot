@@ -98,7 +98,8 @@ function startOnlineDigest(telegram) {
   let inFlight = false;
 
   const postDigest = async () => {
-    if (inFlight || !shouldPostOnlineDigest()) {
+    const parts = zonedParts();
+    if (inFlight || !shouldPostOnlineDigest(parts)) {
       return;
     }
     inFlight = true;
@@ -120,7 +121,7 @@ function startOnlineDigest(telegram) {
         weather?.key,
         daytime,
       );
-      markOnlineDigestPosted();
+      markOnlineDigestPosted(parts);
     } catch (err) {
       console.warn('[digest]', err.message);
     } finally {

@@ -9,6 +9,8 @@ const WEEKDAYS = {
 
 const TOP_LIMIT = 5;
 const SAVE_DEBOUNCE_MS = 400;
+const HOUR_MS = 3600000;
+const DAY_MS = 24 * HOUR_MS;
 
 let state = blankState();
 let loaded = false;
@@ -85,6 +87,7 @@ function blankState() {
     lastDailyPosted: null,
     lastWeeklyPosted: null,
     lastDigestPosted: null,
+    lastDigestPostedAt: null,
     lastMoonPosted: null,
     sessions: {},
   };
@@ -214,6 +217,7 @@ async function writeStats() {
     lastDailyPosted: state.lastDailyPosted,
     lastWeeklyPosted: state.lastWeeklyPosted,
     lastDigestPosted: state.lastDigestPosted,
+    lastDigestPostedAt: state.lastDigestPostedAt,
     lastMoonPosted: state.lastMoonPosted,
   };
   await fs.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
@@ -300,6 +304,8 @@ function mergeLoaded(raw) {
   next.lastDailyPosted = raw.lastDailyPosted || null;
   next.lastWeeklyPosted = raw.lastWeeklyPosted || null;
   next.lastDigestPosted = raw.lastDigestPosted || null;
+  const postedAt = Number(raw.lastDigestPostedAt);
+  next.lastDigestPostedAt = Number.isFinite(postedAt) && postedAt > 0 ? postedAt : null;
   const moonKey = moonKeyFrom(raw.lastMoonPosted);
   next.lastMoonPosted = moonKey ? { key: moonKey } : null;
   next.sessions = {};
@@ -477,13 +483,37 @@ function topEntries(map, limit = TOP_LIMIT) {
     .slice(0, limit);
 }
 
-export function shouldPostOnlineDigest(parts = zonedParts()) {
-  rotateBucketsIfNeeded();
-  return state.lastDigestPosted !== digestHourKey(parts);
+function digestMinIntervalMs() {
+  const ms = Number(config.server.digestIntervalMs);
+  return Number.isFinite(ms) && ms > 0 ? ms : HOUR_MS;
 }
 
-export function markOnlineDigestPosted(parts = zonedParts()) {
+function lastDigestAgeMs(now = Date.now()) {
+  const postedAt = Number(state.lastDigestPostedAt);
+  if (!Number.isFinite(postedAt) || postedAt <= 0) {
+    return Infinity;
+  }
+  return now - postedAt;
+}
+
+export function shouldPostOnlineDigest(parts = zonedParts(), now = Date.now()) {
+  rotateBucketsIfNeeded();
+  const hourKey = digestHourKey(parts);
+  if (state.lastDigestPosted === hourKey) {
+    return false;
+  }
+  // Catch-up at 12:59 must not also fire when the clock rolls to 13:00.
+  if (lastDigestAgeMs(now) < digestMinIntervalMs()) {
+    state.lastDigestPosted = hourKey;
+    scheduleSave();
+    return false;
+  }
+  return true;
+}
+
+export function markOnlineDigestPosted(parts = zonedParts(), now = Date.now()) {
   state.lastDigestPosted = digestHourKey(parts);
+  state.lastDigestPostedAt = now;
   scheduleSave();
 }
 
@@ -520,9 +550,6 @@ export async function takeMoonAnnouncement(moon, notable) {
   console.info(`[moon] ${previous} → ${moon.key}`);
   return Boolean(notable);
 }
-
-const HOUR_MS = 3600000;
-const DAY_MS = 24 * HOUR_MS;
 
 function emptySinceLabel(since) {
   return new Intl.DateTimeFormat('ru-RU', {
