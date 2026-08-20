@@ -503,6 +503,7 @@ const DEATH_LINE = [
   / walked into (a )?fire/,
   / fell from a high place/,
   / fell off /,
+  / fell while climbing/,
   / fell out of the world/,
   / hit the ground too hard/,
   / was squashed /,
