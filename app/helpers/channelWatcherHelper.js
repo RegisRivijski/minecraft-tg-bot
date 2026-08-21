@@ -67,10 +67,15 @@ function startWeatherWatcher(telegram) {
         rconSend('list'),
         fetchMoon(),
       ]);
+      const list = parsePlayerList(listRaw);
+      if (!list.ok || !list.players.length) {
+        console.info(`[weather] ${previous?.key || '—'} → ${weather.key} (skipped, nobody online)`);
+        return;
+      }
       console.info(`[weather] ${previous?.key || '—'} → ${weather.key}`);
       await postWeatherChange(
         telegram,
-        weatherChangedText(previous, weather, daytime, parsePlayerList(listRaw), moon),
+        weatherChangedText(previous, weather, daytime, list, moon),
         weather.key,
         daytime,
       );
@@ -209,10 +214,15 @@ function startMoonWatcher(telegram) {
         rconSend('list'),
         queryWeather(),
       ]);
+      const list = parsePlayerList(listRaw);
+      if (!list.ok || !list.players.length) {
+        console.info(`[moon] ${moon.key} day=${moon.day} (skipped, nobody online)`);
+        return;
+      }
       console.info(`[moon] ${moon.key} day=${moon.day}`);
       await postMoonChange(
         telegram,
-        moonPhaseText(moon, daytime, parsePlayerList(listRaw), weather),
+        moonPhaseText(moon, daytime, list, weather),
         moon.key,
         weather?.key,
       );
