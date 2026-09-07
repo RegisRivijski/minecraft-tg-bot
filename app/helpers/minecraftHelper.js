@@ -191,8 +191,11 @@ export function parseTpsWindows(raw) {
     return null;
   }
 
+  // Paper: "TPS from last 1m, 5m, 15m: 20.0, 20.0, 20.0"
+  // Spark: numbers on the next line after "TPS from last 5s, 10s, …:"
+  const tpsSeries = text.match(/TPS from last[^\n]*:\s*(?:\n\s*)?([0-9]+(?:\.[0-9]+)?(?:\s*,\s*[0-9]+(?:\.[0-9]+)?)*)/i);
   const labeled = text.match(/tps[^:\n]*:\s*([0-9.,\s]+)/i);
-  const source = labeled ? labeled[1] : text;
+  const source = tpsSeries?.[1] || labeled?.[1] || text;
   const windows = [...source.matchAll(/(\d+(?:\.\d+)?)/g)]
     .map((match) => Number(match[1]))
     .filter((value) => Number.isFinite(value) && value <= 21);

@@ -97,7 +97,7 @@ export async function fetchServer() {
     queryDaytimeTicks(),
     queryWeather(),
     rconSend('difficulty').catch(() => ''),
-    rconSend('tps').catch(() => ''),
+    queryTpsRaw(),
     rconSend('seed').catch(() => ''),
     fetchMoon().catch(() => null),
     rconSend('whitelist list').catch(() => ''),
@@ -126,8 +126,18 @@ export async function fetchTime() {
   };
 }
 
+async function queryTpsRaw() {
+  for (const command of ['spark tps', 'tps']) {
+    const raw = await rconSend(command).catch(() => '');
+    if (parseTpsWindows(raw)) {
+      return raw;
+    }
+  }
+  return '';
+}
+
 export async function queryTps() {
-  return parseTps(await rconSend('tps').catch(() => ''));
+  return parseTps(await queryTpsRaw());
 }
 
 export async function fetchMoon() {
