@@ -7,7 +7,7 @@ Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum
 - DMs are available only to `OWNER_IDS`. Everyone else is ignored
 - World status in DMs: players, time of day, difficulty, TPS
 - Weather and moon-phase changes go to the **Погода** topic
-- Joins, leaves, deaths, advancements, TPS, recaps, and other events go to **Події з серверу**
+- Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to **Події з серверу**
 - In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
 - The General topic (**Головний чат**) is ignored: the bot does not read or write there
 - Once an hour — who is online, if anyone is on the server (events topic)

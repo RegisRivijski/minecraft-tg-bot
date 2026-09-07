@@ -409,6 +409,17 @@ export function chatRelayLine(name, message) {
   return `&lt;${formatPlayerName(name)}&gt; ${escapeHtml(message)}`;
 }
 
+export function musicEventLine(event) {
+  const who = event.name ? formatPlayerName(event.name) : 'Кто-то';
+  if (event.type === 'music_playlist' && event.playlist) {
+    return `${who} включил плейлист «${escapeHtml(event.playlist)}»`;
+  }
+  if (event.title) {
+    return `${who} включил музыку: ${escapeHtml(event.title)}`;
+  }
+  return `${who} включил музыку`;
+}
+
 export function joinLeaveText(events, current) {
   const lines = [];
   for (const event of events) {

@@ -446,6 +446,57 @@ export function parseNightSkipLine(raw) {
   return { type: 'night_skip', text: payload };
 }
 
+// Simple Voice Chat Music Addon — system chat / server log
+const MUSIC_STARTED_PLAYBACK = /^\[Music\] (?<name>.+?) started playback(?: at volume (?<volume>\d+))?$/;
+const MUSIC_STARTED_PLAYLIST = /^\[Music\] (?<name>.+?) started playlist (?<playlist>.+)$/;
+const MUSIC_NOW_PLAYING = /^\[Music\] Now playing(?: next)?: (?<title>.+?)(?: \(requested by (?<name>.+)\))?$/;
+const MUSIC_PLAYING_PLAYLIST = /^\[Music\] Playing playlist (?<playlist>.+)$/;
+
+export function parseMusicEventLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload || !payload.startsWith('[Music]')) {
+    return null;
+  }
+
+  const started = payload.match(MUSIC_STARTED_PLAYBACK);
+  if (started?.groups?.name) {
+    return {
+      type: 'music_started',
+      name: started.groups.name.trim(),
+      volume: started.groups.volume ? Number(started.groups.volume) : null,
+    };
+  }
+
+  const playlist = payload.match(MUSIC_STARTED_PLAYLIST);
+  if (playlist?.groups?.name && playlist.groups.playlist) {
+    return {
+      type: 'music_playlist',
+      name: playlist.groups.name.trim(),
+      playlist: playlist.groups.playlist.trim(),
+    };
+  }
+
+  const playingPlaylist = payload.match(MUSIC_PLAYING_PLAYLIST);
+  if (playingPlaylist?.groups?.playlist) {
+    return {
+      type: 'music_playlist',
+      name: null,
+      playlist: playingPlaylist.groups.playlist.trim(),
+    };
+  }
+
+  const nowPlaying = payload.match(MUSIC_NOW_PLAYING);
+  if (nowPlaying?.groups?.title) {
+    return {
+      type: 'music_now_playing',
+      title: nowPlaying.groups.title.trim(),
+      name: nowPlaying.groups.name?.trim() || null,
+    };
+  }
+
+  return null;
+}
+
 export function parseServerLifecycleLine(raw) {
   const payload = stripLogPayload(raw);
   if (!payload) {

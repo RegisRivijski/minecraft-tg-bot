@@ -5,6 +5,7 @@ import { postToChat, postToEvents } from './forumHelper.js';
 import {
   chatRelayLine,
   firstJoinText,
+  musicEventLine,
   nightSkipText,
   petDeathLine,
   serverStartedText,
@@ -16,6 +17,7 @@ import {
 import {
   parseChatLine,
   parseJoinLeaveLine,
+  parseMusicEventLine,
   parseNightSkipLine,
   parsePlayerUuidLine,
   parseServerLifecycleLine,
@@ -38,6 +40,51 @@ function previewLines(lines) {
   }
 }
 
+function mergeMusicEvents(rawEvents) {
+  const merged = [];
+  let pendingStart = null;
+
+  for (const event of rawEvents) {
+    if (event.type === 'music_started') {
+      if (pendingStart) {
+        merged.push(pendingStart);
+      }
+      pendingStart = event;
+      continue;
+    }
+
+    if (event.type === 'music_now_playing') {
+      if (pendingStart) {
+        merged.push({
+          type: 'music_play',
+          name: event.name || pendingStart.name,
+          title: event.title,
+          volume: pendingStart.volume,
+        });
+        pendingStart = null;
+      } else {
+        merged.push({
+          type: 'music_play',
+          name: event.name,
+          title: event.title,
+        });
+      }
+      continue;
+    }
+
+    if (pendingStart) {
+      merged.push(pendingStart);
+      pendingStart = null;
+    }
+    merged.push(event);
+  }
+
+  if (pendingStart) {
+    merged.push(pendingStart);
+  }
+  return merged;
+}
+
 function classifyLogLines(lines) {
   const chatMessages = [];
   const joinLeaveEvents = [];
@@ -47,6 +94,7 @@ function classifyLogLines(lines) {
   const firstJoins = [];
   const nightSkips = [];
   const serverLifecycle = [];
+  const musicRaw = [];
 
   for (const line of lines) {
     const lifecycle = parseServerLifecycleLine(line);
@@ -84,6 +132,13 @@ function classifyLogLines(lines) {
       continue;
     }
 
+    const music = parseMusicEventLine(line);
+    if (music) {
+      console.info(`[log] parsed ${music.type}: ${(music.title || music.playlist || music.name || '').toString().slice(0, 120)}`);
+      musicRaw.push(music);
+      continue;
+    }
+
     const chat = parseChatLine(line);
     if (chat?.message) {
       console.info(`[log] parsed chat: <${chat.name}> ${chat.message.slice(0, 120)}`);
@@ -115,6 +170,7 @@ function classifyLogLines(lines) {
     firstJoins,
     nightSkips,
     serverLifecycle,
+    musicEvents: mergeMusicEvents(musicRaw),
   };
 }
 
@@ -128,11 +184,12 @@ async function forwardLogEvents(telegram, events) {
     firstJoins,
     nightSkips,
     serverLifecycle,
+    musicEvents,
   } = events;
   const joinedCount = joinLeaveEvents.filter((event) => event.type === 'join').length;
   const leftCount = joinLeaveEvents.filter((event) => event.type === 'leave').length;
 
-  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length}`);
+  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length} music=${musicEvents.length}`);
 
   for (const event of serverLifecycle) {
     await postToEvents(
@@ -145,6 +202,9 @@ async function forwardLogEvents(telegram, events) {
   }
   if (nightSkips.length) {
     await postToEvents(telegram, nightSkipText());
+  }
+  if (musicEvents.length) {
+    await postToEvents(telegram, musicEvents.map(musicEventLine).join('\n'), HTML_NO_PREVIEW);
   }
   await postToChat(telegram, chatMessages.join('\n'));
   await postToEvents(telegram, deaths.join('\n'));
