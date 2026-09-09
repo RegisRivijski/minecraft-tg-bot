@@ -17,6 +17,9 @@ export default {
   bot: {
     apiToken: process.env.MINECRAFT_TG_BOT_API_TOKEN,
   },
+  assets: {
+    baseUrl: (process.env.MINECRAFT_ASSETS_BASE_URL || '').replace(/\/$/, ''),
+  },
   telegramBotApi: {
     protocol: process.env.TELEGRAM_BOT_API_PROTOCOL || 'http:',
     host: process.env.TELEGRAM_BOT_API_HOST,

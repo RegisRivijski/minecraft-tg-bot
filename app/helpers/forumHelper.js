@@ -3,13 +3,14 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import config from '../../config/default.js';
 import { GROUP_ID, TOPIC_THREADS } from '../constants/access.js';
 import { HTML } from './copyHelper.js';
 
 const TOPIC_KEYS = ['weather', 'events', 'chat'];
 
 function weatherAsset(name) {
-  return fileURLToPath(new URL(`../assets/weather/${name}.jpg`, import.meta.url));
+  return `weather/${name}.jpg`;
 }
 
 const WEATHER_IMAGES = {
@@ -37,7 +38,19 @@ const WEATHER_PHASE_IMAGES = {
 };
 
 function moonAsset(name) {
-  return fileURLToPath(new URL(`../assets/moon/${name}.jpg`, import.meta.url));
+  return `moon/${name}.jpg`;
+}
+
+function localAssetPath(relativePath) {
+  return fileURLToPath(new URL(`../assets/${relativePath}`, import.meta.url));
+}
+
+function publicAssetUrl(relativePath) {
+  const base = config.assets.baseUrl;
+  if (!base) {
+    return null;
+  }
+  return `${base}/${relativePath}`;
 }
 
 const MOON_IMAGES = {
@@ -135,13 +148,13 @@ export async function warnIfForumMisconfigured(telegram) {
 }
 
 async function imagePath(map, key) {
-  const file = map[key];
-  if (!file) {
+  const relativePath = map[key];
+  if (!relativePath) {
     return null;
   }
   try {
-    await access(file);
-    return file;
+    await access(localAssetPath(relativePath));
+    return relativePath;
   } catch {
     return null;
   }
@@ -198,19 +211,36 @@ async function sendText(telegram, topicKey, text, extra) {
   }
 }
 
-async function sendPhoto(telegram, topicKey, photoPath, caption, extra) {
+async function sendLocalPhoto(telegram, target, relativePath, caption) {
+  await telegram.sendPhoto(
+    target.chatId,
+    { source: createReadStream(localAssetPath(relativePath)) },
+    { caption: caption || undefined, ...target.extra },
+  );
+}
+
+async function sendPhoto(telegram, topicKey, relativePath, caption, extra) {
   const target = topicExtra(topicKey, extra);
   if (!target) {
     return;
   }
+  const url = publicAssetUrl(relativePath);
+  if (url) {
+    try {
+      await telegram.sendPhoto(
+        target.chatId,
+        url,
+        { caption: caption || undefined, ...target.extra },
+      );
+      return;
+    } catch (err) {
+      console.warn(`[forum] ${topicKey} photo url ${url}:`, err.message);
+    }
+  }
   try {
-    await telegram.sendPhoto(
-      target.chatId,
-      { source: createReadStream(photoPath) },
-      { caption: caption || undefined, ...target.extra },
-    );
+    await sendLocalPhoto(telegram, target, relativePath, caption);
   } catch (err) {
-    console.warn(`[forum] ${topicKey} photo ${path.basename(photoPath)}:`, err.message);
+    console.warn(`[forum] ${topicKey} photo ${path.basename(relativePath)}:`, err.message);
     if (caption) {
       await sendText(telegram, topicKey, caption, extra);
     }

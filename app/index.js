@@ -43,6 +43,7 @@ function printStartupTable(apiRoot) {
     Chat: forum.chat,
     Log: config.server.logPath,
     LocalApi: Boolean(apiRoot),
+    Assets: config.assets.baseUrl || 'local files',
   });
 }
 
