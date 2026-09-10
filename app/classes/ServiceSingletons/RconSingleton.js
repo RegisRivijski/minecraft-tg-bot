@@ -5,6 +5,7 @@ import config from '../../../config/default.js';
 let client = null;
 let connectPromise = null;
 let shuttingDown = false;
+let sendQueue = Promise.resolve();
 
 function forgetClient(rcon) {
   if (client === rcon) {
@@ -69,6 +70,12 @@ export async function rconSend(command) {
     throw new Error('not connected');
   }
 
+  const queued = sendQueue.then(() => sendWithRetry(command));
+  sendQueue = queued.catch(() => {});
+  return queued;
+}
+
+async function sendWithRetry(command) {
   try {
     return await sendCommand(command);
   } catch (err) {

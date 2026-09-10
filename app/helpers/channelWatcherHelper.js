@@ -1,196 +1,52 @@
-import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import config from '../../config/default.js';
-import { postMoonChange, postToEvents, postWeatherChange } from './forumHelper.js';
+import { postToEvents } from './forumHelper.js';
 import { startStatusBoard } from './statusBoardHelper.js';
 import {
   dailyRecapText,
   emptyWorldText,
-  moonPhaseText,
   tpsAlertText,
   tpsRecoveredText,
-  weatherChangedText,
   weeklyRecapText,
 } from './copyHelper.js';
-import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
-import { fetchMoon, fetchTime, queryTps, queryWeather } from './serverHelper.js';
 import {
   takeDailyRecap,
   takeEmptyWorldAnnouncement,
-  takeMoonAnnouncement,
   takeWeeklyRecap,
   zonedParts,
 } from './worldStatsHelper.js';
 
 export function startChannelWatchers(telegram) {
-  const stopWeather = startWeatherWatcher(telegram);
-  const stopTps = startTpsWatcher(telegram);
-  const stopMoon = startMoonWatcher(telegram);
+  const noteTps = createTpsAlerter();
   const stopSchedule = startScheduleWatcher(telegram);
-  const stopStatus = startStatusBoard(telegram);
+  const stopStatus = startStatusBoard(telegram, {
+    onSnapshot: (snapshot) => noteTps(telegram, snapshot.tps),
+  });
   return () => {
-    stopWeather();
-    stopTps();
-    stopMoon();
     stopSchedule();
     stopStatus();
   };
 }
 
-function startWeatherWatcher(telegram) {
-  let previousKey = null;
-  let timer = null;
-  let inFlight = false;
-
-  const pollWeather = async () => {
-    if (inFlight) {
-      return;
-    }
-    inFlight = true;
-    try {
-      const weather = await queryWeather();
-      if (!weather?.key) {
-        return;
-      }
-      if (previousKey == null) {
-        previousKey = weather.key;
-        return;
-      }
-      if (previousKey === weather.key) {
-        return;
-      }
-      const previous = describeWeather(previousKey);
-      previousKey = weather.key;
-      const [{ daytime }, listRaw, moon] = await Promise.all([
-        fetchTime(),
-        rconSend('list'),
-        fetchMoon(),
-      ]);
-      const list = parsePlayerList(listRaw);
-      if (!list.ok || !list.players.length) {
-        console.info(`[weather] ${previous?.key || '—'} → ${weather.key} (skipped, nobody online)`);
-        return;
-      }
-      console.info(`[weather] ${previous?.key || '—'} → ${weather.key}`);
-      await postWeatherChange(
-        telegram,
-        weatherChangedText(previous, weather, daytime, list, moon),
-        weather.key,
-        daytime,
-      );
-    } catch (err) {
-      console.warn('[weather]', err.message);
-    } finally {
-      inFlight = false;
-    }
-  };
-
-  timer = setInterval(pollWeather, config.server.weatherPollMs);
-  pollWeather();
-  console.info(`[weather] polling every ${config.server.weatherPollMs}ms`);
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
-    }
-  };
-}
-
-function startTpsWatcher(telegram) {
+function createTpsAlerter() {
   let lagging = null;
-  let timer = null;
-  let inFlight = false;
-
-  const pollTps = async () => {
-    if (inFlight) {
+  return async function noteTps(telegram, tps) {
+    if (tps == null) {
       return;
     }
-    inFlight = true;
-    try {
-      const tps = await queryTps();
-      if (tps == null) {
-        return;
-      }
-      if (lagging == null) {
-        lagging = tps < config.server.tpsAlertBelow;
-        return;
-      }
-      if (!lagging && tps < config.server.tpsAlertBelow) {
-        lagging = true;
-        console.info(`[tps] alert ${tps.toFixed(1)}`);
-        await postToEvents(telegram, tpsAlertText(tps));
-        return;
-      }
-      if (lagging && tps >= config.server.tpsRecoverAt) {
-        lagging = false;
-        console.info(`[tps] recovered ${tps.toFixed(1)}`);
-        await postToEvents(telegram, tpsRecoveredText(tps));
-      }
-    } catch (err) {
-      console.warn('[tps]', err.message);
-    } finally {
-      inFlight = false;
-    }
-  };
-
-  timer = setInterval(pollTps, config.server.tpsPollMs);
-  pollTps();
-  console.info(`[tps] alert below ${config.server.tpsAlertBelow}, recover at ${config.server.tpsRecoverAt}`);
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
-    }
-  };
-}
-
-function startMoonWatcher(telegram) {
-  let timer = null;
-  let inFlight = false;
-
-  const pollMoon = async () => {
-    if (inFlight) {
+    if (lagging == null) {
+      lagging = tps < config.server.tpsAlertBelow;
       return;
     }
-    inFlight = true;
-    try {
-      const moon = await fetchMoon();
-      if (!await takeMoonAnnouncement(moon, isNotableMoonPhase(moon))) {
-        return;
-      }
-      const [{ daytime }, listRaw, weather] = await Promise.all([
-        fetchTime(),
-        rconSend('list'),
-        queryWeather(),
-      ]);
-      const list = parsePlayerList(listRaw);
-      if (!list.ok || !list.players.length) {
-        console.info(`[moon] ${moon.key} day=${moon.day} (skipped, nobody online)`);
-        return;
-      }
-      console.info(`[moon] ${moon.key} day=${moon.day}`);
-      await postMoonChange(
-        telegram,
-        moonPhaseText(moon, daytime, list, weather),
-        moon.key,
-        weather?.key,
-      );
-    } catch (err) {
-      console.warn('[moon]', err.message);
-    } finally {
-      inFlight = false;
+    if (!lagging && tps < config.server.tpsAlertBelow) {
+      lagging = true;
+      console.info(`[tps] alert ${tps.toFixed(1)}`);
+      await postToEvents(telegram, tpsAlertText(tps));
+      return;
     }
-  };
-
-  timer = setInterval(pollMoon, config.server.moonPollMs);
-  pollMoon();
-  console.info(`[moon] polling every ${config.server.moonPollMs}ms`);
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
+    if (lagging && tps >= config.server.tpsRecoverAt) {
+      lagging = false;
+      console.info(`[tps] recovered ${tps.toFixed(1)}`);
+      await postToEvents(telegram, tpsRecoveredText(tps));
     }
   };
 }

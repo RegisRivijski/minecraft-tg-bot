@@ -23,7 +23,6 @@ export const OWNER_IDS = [
 export const GROUP_ID = -1004330943744;
 
 export const TOPIC_THREADS = {
-  weather: 225, // Погода — https://t.me/c/4330943744/225
   events: 227, // Події з серверу — https://t.me/c/4330943744/227
   chat: 229, // Чат з сервером — https://t.me/c/4330943744/229
   status: 2512, // Живая сводка — https://t.me/c/4330943744/2512

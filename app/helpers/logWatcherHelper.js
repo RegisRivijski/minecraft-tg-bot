@@ -29,17 +29,6 @@ import { translateDeathMessage } from './langHelper.js';
 
 const MAX_READ_BYTES = 512 * 1024;
 
-function previewLines(lines) {
-  const limit = 20;
-  const shown = lines.slice(0, limit);
-  for (const line of shown) {
-    console.info('[log]', line.slice(0, 300) || '(empty)');
-  }
-  if (lines.length > limit) {
-    console.info(`[log] … and ${lines.length - limit} more lines`);
-  }
-}
-
 function mergeMusicEvents(rawEvents) {
   const merged = [];
   let pendingStart = null;
@@ -99,21 +88,18 @@ function classifyLogLines(lines) {
   for (const line of lines) {
     const lifecycle = parseServerLifecycleLine(line);
     if (lifecycle) {
-      console.info(`[log] parsed ${lifecycle.type}`);
       serverLifecycle.push(lifecycle);
       continue;
     }
 
     const nightSkip = parseNightSkipLine(line);
     if (nightSkip) {
-      console.info('[log] parsed night_skip');
       nightSkips.push(nightSkip);
       continue;
     }
 
     const uuidLine = parsePlayerUuidLine(line);
     if (uuidLine) {
-      console.info(`[log] parsed uuid: ${uuidLine.name}`);
       if (notePlayerUuid(uuidLine.uuid, uuidLine.name)) {
         firstJoins.push(uuidLine.name);
       }
@@ -122,7 +108,6 @@ function classifyLogLines(lines) {
 
     const joinLeave = parseJoinLeaveLine(line);
     if (joinLeave) {
-      console.info(`[log] parsed ${joinLeave.type}: ${joinLeave.name}`);
       joinLeaveEvents.push(joinLeave);
       if (joinLeave.type === 'join') {
         recordJoin(joinLeave.name);
@@ -134,21 +119,18 @@ function classifyLogLines(lines) {
 
     const music = parseMusicEventLine(line);
     if (music) {
-      console.info(`[log] parsed ${music.type}: ${(music.title || music.playlist || music.name || '').toString().slice(0, 120)}`);
       musicRaw.push(music);
       continue;
     }
 
     const chat = parseChatLine(line);
     if (chat?.message) {
-      console.info(`[log] parsed chat: <${chat.name}> ${chat.message.slice(0, 120)}`);
       chatMessages.push(chatRelayLine(chat.name, chat.message.slice(0, 400)));
       continue;
     }
 
     const event = parseWorldEventLine(line);
     if (event) {
-      console.info(`[log] parsed ${event.type}: ${event.text.slice(0, 160)}`);
       if (event.type === 'advancement') {
         recordAdvancement(event.name);
         advancements.push(advancementLine(event));
@@ -233,7 +215,6 @@ export function startLogWatcher(telegram) {
       return;
     }
     console.info(`[log] ${lines.length} new line(s)`);
-    previewLines(lines);
     await forwardLogEvents(telegram, classifyLogLines(lines));
   };
 
@@ -266,7 +247,6 @@ export function startLogWatcher(telegram) {
         const chunkSize = Math.min(stat.size - readOffset, MAX_READ_BYTES);
         const buffer = Buffer.alloc(chunkSize);
         await handle.read(buffer, 0, chunkSize, readOffset);
-        console.info(`[log] read ${chunkSize} bytes at offset ${readOffset}`);
         readOffset += chunkSize;
         incompleteLine += textDecoder.decode(buffer, { stream: true });
       } finally {

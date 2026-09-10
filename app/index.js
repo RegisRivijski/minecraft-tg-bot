@@ -38,7 +38,6 @@ function printStartupTable(apiRoot) {
     Address: config.server.address,
     Owners: OWNER_IDS.join(', ') || '—',
     Group: forum.group,
-    Weather: forum.weather,
     Events: forum.events,
     Chat: forum.chat,
     Status: forum.status,

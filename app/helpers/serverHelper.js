@@ -16,22 +16,31 @@ import {
   parseWhitelistList,
   TICKS_PER_DAY,
 } from './minecraftHelper.js';
+import { recentPlayerList } from './playerWatcherHelper.js';
 import { ownerWorldStats } from './worldStatsHelper.js';
 
+let daytimeCommand = null;
+let tpsCommand = null;
+let weatherQueryWorks = null;
+let weatherCheckBuilder = null;
+
 async function queryDaytimeTicks() {
-  for (const command of ['time query time', 'time query daytime']) {
+  if (daytimeCommand) {
+    const ticks = parseTimeQuery(await rconSend(daytimeCommand).catch(() => ''));
+    if (ticks != null) {
+      return normalizeDayTicks(ticks);
+    }
+    daytimeCommand = null;
+  }
+  for (const command of ['time query time', 'time query daytime', 'time query gametime']) {
     const ticks = parseTimeQuery(await rconSend(command).catch(() => ''));
     if (ticks == null) {
       continue;
     }
+    daytimeCommand = command;
     return normalizeDayTicks(ticks);
   }
-
-  const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
-  if (gametime == null) {
-    return null;
-  }
-  return normalizeDayTicks(gametime);
+  return null;
 }
 
 const WEATHER_CHECKS = [
@@ -40,11 +49,13 @@ const WEATHER_CHECKS = [
 ];
 
 async function checkWeatherFlag(flag) {
+  const builders = weatherCheckBuilder ? [weatherCheckBuilder] : WEATHER_CHECKS;
   let lastRaw = '';
-  for (const buildCommand of WEATHER_CHECKS) {
+  for (const buildCommand of builders) {
     lastRaw = await rconSend(buildCommand(flag)).catch(() => '');
     const result = parseWeatherCheck(lastRaw);
     if (result !== null) {
+      weatherCheckBuilder = buildCommand;
       return { result, raw: lastRaw };
     }
   }
@@ -52,16 +63,22 @@ async function checkWeatherFlag(flag) {
 }
 
 export async function queryWeather() {
-  const [queryRaw, thunder, rain] = await Promise.all([
-    rconSend('weather query').catch(() => ''),
+  if (weatherQueryWorks !== false) {
+    const fromQuery = parseWeatherQuery(await rconSend('weather query').catch(() => ''));
+    if (fromQuery) {
+      weatherQueryWorks = true;
+      return describeWeather(fromQuery);
+    }
+    if (weatherQueryWorks === true) {
+      return null;
+    }
+    weatherQueryWorks = false;
+  }
+
+  const [thunder, rain] = await Promise.all([
     checkWeatherFlag('thundering'),
     checkWeatherFlag('raining'),
   ]);
-
-  const fromQuery = parseWeatherQuery(queryRaw);
-  if (fromQuery) {
-    return describeWeather(fromQuery);
-  }
 
   if (thunder.result) {
     return describeWeather('thunder');
@@ -74,7 +91,6 @@ export async function queryWeather() {
   }
 
   console.warn('[weather] unread', {
-    query: String(queryRaw).slice(0, 200),
     thunder: String(thunder.raw).slice(0, 200),
     rain: String(rain.raw).slice(0, 200),
   });
@@ -84,22 +100,20 @@ export async function queryWeather() {
 export async function fetchServer() {
   const [
     listRaw,
-    daytimeTicks,
+    clock,
     weather,
     difficultyRaw,
     tpsRaw,
     seedRaw,
-    moon,
     whitelistRaw,
     gamerules,
   ] = await Promise.all([
     rconSend('list'),
-    queryDaytimeTicks(),
+    fetchWorldClock(),
     queryWeather(),
     rconSend('difficulty').catch(() => ''),
     queryTpsRaw(),
     rconSend('seed').catch(() => ''),
-    fetchMoon().catch(() => null),
     rconSend('whitelist list').catch(() => ''),
     queryGamerules().catch(() => ({})),
   ]);
@@ -107,13 +121,13 @@ export async function fetchServer() {
   const tpsWindows = parseTpsWindows(tpsRaw);
   return {
     list: parsePlayerList(listRaw),
-    daytime: describeDaytime(daytimeTicks),
+    daytime: clock.daytime,
     weather,
     difficulty: parseDifficulty(difficultyRaw),
     tps: tpsWindows?.current ?? null,
     tpsWindows: tpsWindows?.windows || null,
     seed: parseSeed(seedRaw),
-    moon,
+    moon: clock.moon,
     whitelist: parseWhitelistList(whitelistRaw),
     gamerules,
     stats: ownerWorldStats(),
@@ -126,27 +140,54 @@ export async function fetchTime() {
   };
 }
 
-export async function fetchWorldSnapshot() {
-  const [listRaw, daytimeTicks, weather, moon, tps] = await Promise.all([
-    rconSend('list').catch(() => ''),
+export async function fetchWorldClock() {
+  if (daytimeCommand === 'time query gametime') {
+    const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
+    return {
+      daytime: describeDaytime(gametime == null ? null : normalizeDayTicks(gametime)),
+      moon: gametime == null ? null : describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY)),
+    };
+  }
+  const [daytimeTicks, gametime] = await Promise.all([
     queryDaytimeTicks().catch(() => null),
+    rconSend('time query gametime').catch(() => ''),
+  ]);
+  const ticks = parseTimeQuery(gametime);
+  return {
+    daytime: describeDaytime(daytimeTicks),
+    moon: ticks == null ? null : describeMoonPhase(Math.floor(ticks / TICKS_PER_DAY)),
+  };
+}
+
+export async function fetchWorldSnapshot() {
+  const cachedList = recentPlayerList();
+  const [listRaw, clock, weather, tps] = await Promise.all([
+    cachedList ? Promise.resolve('') : rconSend('list').catch(() => ''),
+    fetchWorldClock(),
     queryWeather().catch(() => null),
-    fetchMoon().catch(() => null),
     queryTps().catch(() => null),
   ]);
   return {
-    list: parsePlayerList(listRaw),
-    daytime: describeDaytime(daytimeTicks),
+    list: cachedList || parsePlayerList(listRaw),
+    daytime: clock.daytime,
     weather,
-    moon,
+    moon: clock.moon,
     tps,
   };
 }
 
 async function queryTpsRaw() {
+  if (tpsCommand) {
+    const raw = await rconSend(tpsCommand).catch(() => '');
+    if (parseTpsWindows(raw)) {
+      return raw;
+    }
+    tpsCommand = null;
+  }
   for (const command of ['spark tps', 'tps']) {
     const raw = await rconSend(command).catch(() => '');
     if (parseTpsWindows(raw)) {
+      tpsCommand = command;
       return raw;
     }
   }
@@ -155,14 +196,6 @@ async function queryTpsRaw() {
 
 export async function queryTps() {
   return parseTps(await queryTpsRaw());
-}
-
-export async function fetchMoon() {
-  const gametime = parseTimeQuery(await rconSend('time query gametime').catch(() => ''));
-  if (gametime == null) {
-    return null;
-  }
-  return describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY));
 }
 
 const OWNER_GAMERULES = [

@@ -7,7 +7,7 @@ import config from '../../config/default.js';
 import { GROUP_ID, TOPIC_THREADS } from '../constants/access.js';
 import { HTML } from './copyHelper.js';
 
-const TOPIC_KEYS = ['weather', 'events', 'chat', 'status'];
+const TOPIC_KEYS = ['events', 'chat', 'status'];
 
 function weatherAsset(name) {
   return `weather/${name}.jpg`;
@@ -79,6 +79,8 @@ const MOON_WEATHER_IMAGES = {
 
 const missingTopicLogged = new Set();
 let missingGroupLogged = false;
+let statusCannotPost = false;
+let statusCannotPostLogged = false;
 
 function asThreadId(value) {
   const id = Number(value);
@@ -108,7 +110,6 @@ export function getThreadId(key) {
 export function getForumSummary() {
   return {
     group: getGroupChatId() || GROUP_ID || '—',
-    weather: getThreadId('weather') || '—',
     events: getThreadId('events') || '—',
     chat: getThreadId('chat') || '—',
     status: getThreadId('status') || '—',
@@ -154,11 +155,18 @@ export async function warnIfForumMisconfigured(telegram) {
   }
 }
 
+const localAssetCache = new Map();
+
 async function localAssetExists(relativePath) {
+  if (localAssetCache.has(relativePath)) {
+    return localAssetCache.get(relativePath);
+  }
   try {
     await access(localAssetPath(relativePath));
+    localAssetCache.set(relativePath, true);
     return true;
   } catch {
+    localAssetCache.set(relativePath, false);
     return false;
   }
 }
@@ -168,7 +176,7 @@ async function imagePath(map, key) {
   if (!relativePath) {
     return null;
   }
-  if (await localAssetExists(relativePath) || publicAssetUrl(relativePath)) {
+  if (publicAssetUrl(relativePath) || await localAssetExists(relativePath)) {
     return relativePath;
   }
   return null;
@@ -241,37 +249,8 @@ function cannotEditAsPhoto(err) {
   );
 }
 
-async function photoInput(relativePath, fileIds = {}) {
-  if (fileIds[relativePath]) {
-    return fileIds[relativePath];
-  }
-  if (await localAssetExists(relativePath)) {
-    return { source: createReadStream(localAssetPath(relativePath)) };
-  }
-  const url = publicAssetUrl(relativePath);
-  if (url) {
-    return url;
-  }
-  return { source: createReadStream(localAssetPath(relativePath)) };
-}
-
-const pinnedThisRun = new Set();
-
-async function pinSilent(telegram, chatId, messageId) {
-  const key = `${chatId}:${messageId}`;
-  if (pinnedThisRun.has(key)) {
-    return;
-  }
-  try {
-    await telegram.pinChatMessage(chatId, messageId, { disable_notification: true });
-    pinnedThisRun.add(key);
-  } catch (err) {
-    if (/already pinned|CHAT_NOT_MODIFIED/i.test(telegramErrorText(err))) {
-      pinnedThisRun.add(key);
-      return;
-    }
-    console.warn(`[forum] pin ${chatId}/${messageId}:`, err.message);
-  }
+function isTopicClosed(err) {
+  return /TOPIC_CLOSED/i.test(telegramErrorText(err));
 }
 
 function rememberFileId(fileIds, relativePath, message) {
@@ -281,59 +260,74 @@ function rememberFileId(fileIds, relativePath, message) {
   }
 }
 
-async function sendBoardPhoto(telegram, target, relativePath, caption, fileIds) {
-  const extra = { caption: caption || undefined, ...target.extra };
-  const cached = fileIds[relativePath];
-  if (cached) {
-    try {
-      return await telegram.sendPhoto(target.chatId, cached, extra);
-    } catch (err) {
-      console.warn('[forum] status file_id:', err.message);
-      delete fileIds[relativePath];
-    }
+async function nginxPhoto(relativePath) {
+  const url = publicAssetUrl(relativePath);
+  if (!url) {
+    return null;
   }
-  if (await localAssetExists(relativePath)) {
-    try {
-      return await telegram.sendPhoto(
-        target.chatId,
-        { source: createReadStream(localAssetPath(relativePath)) },
-        extra,
-      );
-    } catch (err) {
-      console.warn(`[forum] status local photo ${path.basename(relativePath)}:`, err.message);
-    }
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`asset ${response.status} ${url}`);
+  }
+  return {
+    source: Buffer.from(await response.arrayBuffer()),
+    filename: path.basename(relativePath),
+  };
+}
+
+let nginxFetchWarned = false;
+
+async function photoMedia(relativePath, fileIds = {}) {
+  if (fileIds[relativePath]) {
+    return fileIds[relativePath];
   }
   const url = publicAssetUrl(relativePath);
   if (url) {
-    return telegram.sendPhoto(target.chatId, url, extra);
+    try {
+      return await nginxPhoto(relativePath);
+    } catch (err) {
+      if (!nginxFetchWarned) {
+        nginxFetchWarned = true;
+        console.warn('[forum] nginx fetch failed:', err.message);
+      }
+    }
   }
-  return telegram.sendPhoto(
-    target.chatId,
-    { source: createReadStream(localAssetPath(relativePath)) },
-    extra,
-  );
+  return {
+    source: createReadStream(localAssetPath(relativePath)),
+    filename: path.basename(relativePath),
+  };
 }
 
-async function editBoardPhoto(telegram, chatId, messageId, relativePath, caption, fileIds) {
-  const cached = fileIds[relativePath];
+async function withOpenTopic(telegram, chatId, threadId, task) {
+  let opened = false;
   try {
-    return await telegram.editMessageMedia(chatId, messageId, undefined, {
-      type: 'photo',
-      media: await photoInput(relativePath, fileIds),
-      caption: caption || undefined,
-      parse_mode: 'HTML',
-    });
+    await telegram.reopenForumTopic(chatId, threadId);
+    opened = true;
   } catch (err) {
-    if (isNotModified(err) || isMissingMessage(err) || cannotEditAsPhoto(err) || !cached) {
-      throw err;
+    if (!/TOPIC_NOT_MODIFIED|not closed/i.test(telegramErrorText(err)) && !isTopicClosed(err)) {
+      // Already open, or the bot cannot manage topics.
     }
-    delete fileIds[relativePath];
-    return telegram.editMessageMedia(chatId, messageId, undefined, {
-      type: 'photo',
-      media: await photoInput(relativePath, fileIds),
-      caption: caption || undefined,
-      parse_mode: 'HTML',
-    });
+  }
+  try {
+    return await task();
+  } finally {
+    if (opened) {
+      try {
+        await telegram.closeForumTopic(chatId, threadId);
+      } catch {
+        // Leave the topic as-is if close fails.
+      }
+    }
+  }
+}
+
+async function pinSilent(telegram, chatId, messageId) {
+  try {
+    await telegram.pinChatMessage(chatId, messageId, { disable_notification: true });
+  } catch (err) {
+    if (!/already pinned|CHAT_NOT_MODIFIED/i.test(telegramErrorText(err))) {
+      console.warn(`[forum] pin ${chatId}/${messageId}:`, err.message);
+    }
   }
 }
 
@@ -344,8 +338,29 @@ async function deleteSilent(telegram, chatId, messageId) {
   try {
     await telegram.deleteMessage(chatId, messageId);
   } catch {
-    // The previous text board can already be gone.
+    // The previous board message can already be gone.
   }
+}
+
+async function editBoardPhoto(telegram, chatId, messageId, relativePath, caption, fileIds) {
+  return telegram.editMessageMedia(chatId, messageId, undefined, {
+    type: 'photo',
+    media: await photoMedia(relativePath, fileIds),
+    caption: caption || undefined,
+    parse_mode: 'HTML',
+  });
+}
+
+function savedPointer({ messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto }) {
+  return {
+    messageId,
+    chatId,
+    threadId,
+    fileIds,
+    imagePath: relativePath,
+    caption,
+    hasPhoto,
+  };
 }
 
 export async function upsertPinnedStatusBoard(telegram, caption, relativePath, pointer = {}) {
@@ -356,13 +371,16 @@ export async function upsertPinnedStatusBoard(telegram, caption, relativePath, p
 
   const { chatId } = target;
   const threadId = target.extra.message_thread_id;
+  const extra = { caption: caption || undefined, ...target.extra };
   const fileIds = { ...(pointer.fileIds || {}) };
-  const samePlace = pointer.chatId === chatId && pointer.threadId === threadId;
+  const samePlace = Boolean(pointer.messageId)
+    && (pointer.chatId == null || pointer.chatId === chatId)
+    && (pointer.threadId == null || pointer.threadId === threadId);
   const messageId = samePlace ? pointer.messageId : null;
   const hasPhoto = samePlace ? Boolean(pointer.hasPhoto) : false;
 
-  const sendNew = async (replaceId = null) => {
-    const message = await sendBoardPhoto(telegram, target, relativePath, caption, fileIds);
+  const sendNew = async (replaceId = null) => withOpenTopic(telegram, chatId, threadId, async () => {
+    const message = await telegram.sendPhoto(chatId, await photoMedia(relativePath, fileIds), extra);
     const id = message?.message_id;
     if (!id) {
       return pointer;
@@ -373,68 +391,98 @@ export async function upsertPinnedStatusBoard(telegram, caption, relativePath, p
       await deleteSilent(telegram, chatId, replaceId);
     }
     console.info(`[status] posted ${chatId}/${threadId}/${id} ${relativePath}`);
-    return {
-      messageId: id,
-      chatId,
-      threadId,
-      fileIds,
-      imagePath: relativePath,
-      caption,
-      hasPhoto: true,
-    };
-  };
+    return savedPointer({
+      messageId: id, chatId, threadId, fileIds, relativePath, caption, hasPhoto: true,
+    });
+  });
 
-  if (!messageId || !hasPhoto) {
-    try {
-      return await sendNew(messageId);
-    } catch (err) {
-      console.warn(`[forum] status send ${chatId}/${threadId}:`, err.message);
-      return pointer;
-    }
-  }
-
-  try {
+  const editPhoto = async () => {
     let message;
     if (pointer.imagePath !== relativePath) {
       message = await editBoardPhoto(telegram, chatId, messageId, relativePath, caption, fileIds);
     } else if (pointer.caption !== caption) {
       message = await telegram.editMessageCaption(chatId, messageId, undefined, caption, HTML);
     } else {
-      await pinSilent(telegram, chatId, messageId);
       return pointer;
     }
     rememberFileId(fileIds, relativePath, message);
-    return {
-      messageId,
-      chatId,
-      threadId,
-      fileIds,
-      imagePath: relativePath,
-      caption,
-      hasPhoto: true,
-    };
-  } catch (err) {
-    if (isNotModified(err)) {
-      return {
-        messageId,
-        chatId,
-        threadId,
-        fileIds,
-        imagePath: relativePath,
-        caption,
-        hasPhoto: true,
-      };
+    return savedPointer({
+      messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto: true,
+    });
+  };
+
+  const editText = async () => {
+    if (pointer.caption === caption && samePlace) {
+      return pointer;
     }
-    if (isMissingMessage(err) || cannotEditAsPhoto(err)) {
-      try {
-        return await sendNew(messageId);
-      } catch (sendErr) {
-        console.warn(`[forum] status resend ${chatId}/${threadId}:`, sendErr.message);
+    await telegram.editMessageText(chatId, messageId, undefined, caption, HTML);
+    return savedPointer({
+      messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto: false,
+    });
+  };
+
+  if (messageId && hasPhoto) {
+    try {
+      return await editPhoto();
+    } catch (err) {
+      if (isNotModified(err)) {
+        return savedPointer({
+          messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto: true,
+        });
+      }
+      if (!isMissingMessage(err) && !cannotEditAsPhoto(err)) {
+        console.warn(`[forum] status edit ${chatId}/${messageId}:`, err.message);
         return pointer;
       }
     }
-    console.warn(`[forum] status edit ${chatId}/${messageId}:`, err.message);
-    return pointer;
+  }
+
+  if (messageId && !hasPhoto && statusCannotPost) {
+    try {
+      return await editText();
+    } catch (err) {
+      if (isNotModified(err)) {
+        return pointer;
+      }
+      console.warn(`[forum] status text ${chatId}/${messageId}:`, err.message);
+      return pointer;
+    }
+  }
+
+  try {
+    return await sendNew(messageId);
+  } catch (err) {
+    if (isTopicClosed(err)) {
+      statusCannotPost = true;
+      if (!statusCannotPostLogged) {
+        statusCannotPostLogged = true;
+        console.warn('[status] topic is closed; editing the saved message instead of posting a new one');
+      }
+    }
+    if (messageId && !isMissingMessage(err)) {
+      try {
+        if (hasPhoto) {
+          await telegram.editMessageCaption(chatId, messageId, undefined, caption, HTML);
+          return savedPointer({
+            messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto: true,
+          });
+        }
+        return await editText();
+      } catch (editErr) {
+        if (isNotModified(editErr)) {
+          return pointer;
+        }
+        console.warn(`[forum] status fallback ${chatId}/${messageId}:`, editErr.message);
+      }
+    }
+    if (!isTopicClosed(err) || !messageId) {
+      console.warn(`[forum] status send ${chatId}/${threadId}:`, err.message);
+    }
+    return messageId
+      ? savedPointer({
+        messageId, chatId, threadId, fileIds, relativePath, caption, hasPhoto,
+      })
+      : pointer;
   }
 }
 
@@ -473,64 +521,10 @@ async function sendText(telegram, topicKey, text, extra) {
   }
 }
 
-async function sendLocalPhoto(telegram, target, relativePath, caption) {
-  await telegram.sendPhoto(
-    target.chatId,
-    { source: createReadStream(localAssetPath(relativePath)) },
-    { caption: caption || undefined, ...target.extra },
-  );
-}
-
-async function sendPhoto(telegram, topicKey, relativePath, caption, extra) {
-  const target = topicExtra(topicKey, extra);
-  if (!target) {
-    return;
-  }
-  const url = publicAssetUrl(relativePath);
-  if (url) {
-    try {
-      await telegram.sendPhoto(
-        target.chatId,
-        url,
-        { caption: caption || undefined, ...target.extra },
-      );
-      return;
-    } catch (err) {
-      console.warn(`[forum] ${topicKey} photo url ${url}:`, err.message);
-    }
-  }
-  try {
-    await sendLocalPhoto(telegram, target, relativePath, caption);
-  } catch (err) {
-    console.warn(`[forum] ${topicKey} photo ${path.basename(relativePath)}:`, err.message);
-    if (caption) {
-      await sendText(telegram, topicKey, caption, extra);
-    }
-  }
-}
-
-async function postPhotoOrText(telegram, topicKey, photoPath, caption, extra = HTML) {
-  if (photoPath) {
-    await sendPhoto(telegram, topicKey, photoPath, caption, extra);
-    return;
-  }
-  await sendText(telegram, topicKey, caption, extra);
-}
-
 export async function postToEvents(telegram, text, extra = HTML) {
   await sendText(telegram, 'events', text, extra);
 }
 
 export async function postToChat(telegram, text, extra = HTML) {
   await sendText(telegram, 'chat', text, extra);
-}
-
-export async function postWeatherChange(telegram, caption, weatherKey, daytime) {
-  const image = await weatherImagePath(weatherKey, daytime?.phase);
-  await postPhotoOrText(telegram, 'weather', image, caption);
-}
-
-export async function postMoonChange(telegram, caption, moonKey, weatherKey) {
-  const image = await moonImagePath(moonKey, weatherKey);
-  await postPhotoOrText(telegram, 'weather', image, caption);
 }

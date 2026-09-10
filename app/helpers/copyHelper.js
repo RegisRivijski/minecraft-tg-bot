@@ -17,7 +17,7 @@ export function startText() {
     'Режим игры: Выживание',
     `Сервер: <code>${escapeHtml(config.server.address)}</code>`,
     '',
-    'Чат мира, погода и события идут в ветки группы. Вайтлист — /whitelist в общем чате группы. Здесь — команды оператора, /help.',
+    'Чат мира и события идут в ветки группы. Вайтлист — /whitelist в общем чате группы. Здесь — команды оператора, /help.',
   ].join('\n');
 }
 
@@ -242,16 +242,6 @@ export function weatherSetDone(label) {
   return `Погода изменена: ${label}`;
 }
 
-export function onlinePlayersText(list) {
-  if (!list?.ok) {
-    return '';
-  }
-  if (!list.players.length) {
-    return 'На сервере нет игроков.';
-  }
-  return `Игроки (${list.online}/${list.max}): ${formatPlayerNames(list.players)}`;
-}
-
 function formatMoonLine(moon) {
   if (!moon) {
     return null;
@@ -267,48 +257,19 @@ function formatTimeLine(daytime) {
   return `${daytime.icon} ${escapeHtml(daytime.label)}`;
 }
 
-function formatWeatherLine(weather, previous) {
+function formatWeatherLine(weather) {
   if (!weather) {
     return null;
-  }
-  if (previous && previous.key !== weather.key) {
-    return `${previous.icon} → ${weather.icon} · <b>${escapeHtml(weather.label)}</b>`;
   }
   return `${weather.icon} · ${escapeHtml(weather.label)}`;
 }
 
-function worldStatusLines({ moon, daytime, weather, previousWeather } = {}) {
+function worldStatusLines({ moon, daytime, weather } = {}) {
   return [
-    formatWeatherLine(weather, previousWeather),
+    formatWeatherLine(weather),
     formatMoonLine(moon),
     formatTimeLine(daytime),
   ].filter(Boolean);
-}
-
-function appendWorldContext(lines, daytime, list, extra = {}) {
-  lines.push(...worldStatusLines({
-    moon: extra.moon,
-    daytime,
-    weather: extra.weather,
-    previousWeather: extra.previousWeather,
-  }));
-  const players = onlinePlayersText(list);
-  if (players) {
-    lines.push('', players);
-  }
-}
-
-export function weatherChangedText(previous, current, daytime, list, moon) {
-  if (!current) {
-    return '';
-  }
-  const lines = [];
-  appendWorldContext(lines, daytime, list, {
-    moon,
-    weather: current,
-    previousWeather: previous,
-  });
-  return lines.join('\n');
 }
 
 export function seedText(seed) {
@@ -504,15 +465,6 @@ export function serverStartedText() {
 
 export function serverStoppingText() {
   return 'Сервер останавливается.';
-}
-
-export function moonPhaseText(moon, daytime, list, weather) {
-  if (!moon) {
-    return '';
-  }
-  const lines = [];
-  appendWorldContext(lines, daytime, list, { moon, weather });
-  return lines.join('\n');
 }
 
 function formatDays(count) {

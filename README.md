@@ -1,12 +1,11 @@
 # Minecraft Telegram Bot
 
-Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum group gets the live world feed, split by topic: weather, server events, and two-way chat.
+Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum group gets the live world feed: server events, two-way chat, and a pinned live status.
 
 ## Features
 
 - DMs are available only to `OWNER_IDS`. Everyone else is ignored
 - World status in DMs: players, time of day, difficulty, TPS
-- Weather and moon-phase changes go to the **Погода** topic
 - Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to **Події з серверу**
 - In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
 - The General topic (**Головний чат**) is ignored: the bot does not read or write there
@@ -41,7 +40,7 @@ How to read the code:
 1. A Telegram command arrives → `app/routes/index.js`
 2. The route calls a function in `controllers/`
 3. The controller reads data from `helpers/` and RCON, replies with copy from `copyHelper.js`
-4. Background jobs (players, log, weather, status board) start in `app/index.js`
+4. Background jobs (players, log, status board) start in `app/index.js`
 
 Owner and forum group are set in `app/constants/access.js`.
 
@@ -81,7 +80,6 @@ MINECRAFT_ADDRESS=artur-petrov.vinnica.ua:25565
 MINECRAFT_POLL_INTERVAL_MS=5000
 MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
-MINECRAFT_WEATHER_POLL_MS=30000
 MINECRAFT_STATUS_BOARD_POLL_MS=15000
 
 TELEGRAM_BOT_API_PROTOCOL=http:

@@ -84,7 +84,7 @@ function blankState() {
     lastWeeklyPosted: null,
     lastDigestPosted: null,
     lastDigestPostedAt: null,
-    lastMoonPosted: null,
+    statusBoard: null,
     sessions: {},
   };
 }
@@ -214,7 +214,7 @@ async function writeStats() {
     lastWeeklyPosted: state.lastWeeklyPosted,
     lastDigestPosted: state.lastDigestPosted,
     lastDigestPostedAt: state.lastDigestPostedAt,
-    lastMoonPosted: state.lastMoonPosted,
+    statusBoard: state.statusBoard,
   };
   await fs.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
   await fs.rename(tmp, file);
@@ -231,13 +231,58 @@ async function readJson(file) {
   }
 }
 
-function moonPhasePath() {
-  return path.join(path.dirname(config.server.statsPath), 'tg-bot-moon.json');
+function asStatusBoard(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const messageId = Number(raw.messageId);
+  if (!Number.isFinite(messageId) || messageId <= 0) {
+    return null;
+  }
+  const fileIds = raw.fileIds && typeof raw.fileIds === 'object' && !Array.isArray(raw.fileIds)
+    ? raw.fileIds
+    : {};
+  return {
+    messageId,
+    chatId: Number(raw.chatId) || null,
+    threadId: Number(raw.threadId) || null,
+    fileIds,
+    imagePath: raw.imagePath || null,
+    hasPhoto: Boolean(raw.hasPhoto),
+  };
 }
 
-function moonKeyFrom(raw) {
-  const key = String(raw?.key || '');
-  return key || null;
+function fileIdsEqual(left = {}, right = {}) {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  return leftKeys.every((key) => left[key] === right[key]);
+}
+
+function sameStatusBoard(left, right) {
+  return left
+    && right
+    && left.messageId === right.messageId
+    && left.chatId === right.chatId
+    && left.threadId === right.threadId
+    && left.hasPhoto === right.hasPhoto
+    && left.imagePath === right.imagePath
+    && fileIdsEqual(left.fileIds, right.fileIds);
+}
+
+export function getStatusBoard() {
+  return state.statusBoard;
+}
+
+export function setStatusBoard(pointer) {
+  const next = asStatusBoard(pointer);
+  if (sameStatusBoard(state.statusBoard, next)) {
+    return;
+  }
+  state.statusBoard = next;
+  scheduleSave();
 }
 
 function asCountMap(raw) {
@@ -302,8 +347,7 @@ function mergeLoaded(raw) {
   next.lastDigestPosted = raw.lastDigestPosted || null;
   const postedAt = Number(raw.lastDigestPostedAt);
   next.lastDigestPostedAt = Number.isFinite(postedAt) && postedAt > 0 ? postedAt : null;
-  const moonKey = moonKeyFrom(raw.lastMoonPosted);
-  next.lastMoonPosted = moonKey ? { key: moonKey } : null;
+  next.statusBoard = asStatusBoard(raw.statusBoard);
   next.sessions = {};
   return next;
 }
@@ -477,40 +521,6 @@ function topEntries(map, limit = TOP_LIMIT) {
     .filter(([, value]) => Number(value) > 0)
     .sort((left, right) => Number(right[1]) - Number(left[1]) || left[0].localeCompare(right[0]))
     .slice(0, limit);
-}
-
-async function readMoonKey() {
-  const fromFile = moonKeyFrom(await readJson(moonPhasePath()));
-  if (fromFile) {
-    return fromFile;
-  }
-  return state.lastMoonPosted?.key || null;
-}
-
-async function writeMoonKey(key) {
-  const file = moonPhasePath();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  await fs.writeFile(tmp, `${JSON.stringify({ key }, null, 2)}\n`);
-  await fs.rename(tmp, file);
-  state.lastMoonPosted = { key };
-}
-
-export async function takeMoonAnnouncement(moon, notable) {
-  if (!moon?.key) {
-    return false;
-  }
-  const previous = await readMoonKey();
-  if (previous === moon.key) {
-    return false;
-  }
-  await writeMoonKey(moon.key);
-  if (!previous) {
-    console.info(`[moon] stored ${moon.key}`);
-    return false;
-  }
-  console.info(`[moon] ${previous} → ${moon.key}`);
-  return Boolean(notable);
 }
 
 function emptySinceLabel(since) {

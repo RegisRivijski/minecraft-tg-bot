@@ -5,28 +5,19 @@ import config from '../../config/default.js';
 import { statusBoardText } from './copyHelper.js';
 import { statusBoardImagePath, upsertPinnedStatusBoard } from './forumHelper.js';
 import { fetchWorldSnapshot } from './serverHelper.js';
+import { getStatusBoard, setStatusBoard } from './worldStatsHelper.js';
 
-function storePath() {
+function sidecarPath() {
   return path.join(path.dirname(config.server.statsPath), 'tg-bot-status-board.json');
 }
 
-async function loadPointer() {
+async function loadSidecar() {
   try {
-    const raw = JSON.parse(await fs.readFile(storePath(), 'utf8'));
+    const raw = JSON.parse(await fs.readFile(sidecarPath(), 'utf8'));
     if (!raw || typeof raw !== 'object') {
       return {};
     }
-    return {
-      messageId: Number(raw.messageId) || null,
-      chatId: Number(raw.chatId) || null,
-      threadId: Number(raw.threadId) || null,
-      fileIds: raw.fileIds && typeof raw.fileIds === 'object' && !Array.isArray(raw.fileIds)
-        ? raw.fileIds
-        : {},
-      imagePath: raw.imagePath || null,
-      caption: raw.caption || null,
-      hasPhoto: Boolean(raw.hasPhoto) || Boolean(raw.imagePath),
-    };
+    return raw;
   } catch (err) {
     if (err.code !== 'ENOENT') {
       console.warn('[status] read', err.message);
@@ -35,15 +26,20 @@ async function loadPointer() {
   }
 }
 
-async function savePointer(pointer) {
-  const file = storePath();
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  await fs.writeFile(tmp, `${JSON.stringify(pointer, null, 2)}\n`);
-  await fs.rename(tmp, file);
+async function loadPointer() {
+  const fromStats = getStatusBoard();
+  if (fromStats?.messageId) {
+    return fromStats;
+  }
+  const fromFile = await loadSidecar();
+  if (fromFile?.messageId) {
+    setStatusBoard(fromFile);
+    return getStatusBoard() || fromFile;
+  }
+  return {};
 }
 
-export function startStatusBoard(telegram) {
+export function startStatusBoard(telegram, { onSnapshot } = {}) {
   let timer = null;
   let inFlight = false;
   let pointer = {};
@@ -58,8 +54,14 @@ export function startStatusBoard(telegram) {
       if (!loaded) {
         pointer = await loadPointer();
         loaded = true;
+        if (pointer.messageId) {
+          console.info(`[status] resume message ${pointer.messageId} photo=${Boolean(pointer.hasPhoto)}`);
+        }
       }
       const snapshot = await fetchWorldSnapshot();
+      if (onSnapshot) {
+        await onSnapshot(snapshot);
+      }
       const caption = statusBoardText(snapshot);
       const imagePath = await statusBoardImagePath({
         weatherKey: snapshot.weather?.key,
@@ -69,7 +71,9 @@ export function startStatusBoard(telegram) {
       const next = await upsertPinnedStatusBoard(telegram, caption, imagePath, pointer);
       if (next !== pointer) {
         pointer = next;
-        await savePointer(pointer).catch((err) => console.warn('[status] save', err.message));
+        if (pointer.messageId) {
+          setStatusBoard(pointer);
+        }
       }
     } catch (err) {
       console.warn('[status]', err.message);

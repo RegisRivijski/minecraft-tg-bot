@@ -161,10 +161,6 @@ export function describeMoonPhase(dayNumber) {
   return { day, phase, ...MOON_PHASES[phase] };
 }
 
-export function isNotableMoonPhase(moon) {
-  return moon?.key === 'full' || moon?.key === 'new';
-}
-
 export function formatPlayerName(name) {
   return `<i><code>${escapeHtml(name)}</code></i>`;
 }

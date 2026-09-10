@@ -4,6 +4,16 @@ import { notifyJoinLeave } from './joinNotifyHelper.js';
 import { recordPlayerSnapshot } from './worldStatsHelper.js';
 import config from '../../config/default.js';
 
+let lastList = null;
+let lastListAt = 0;
+
+export function recentPlayerList(maxAgeMs = 8000) {
+  if (!lastList?.ok || Date.now() - lastListAt > maxAgeMs) {
+    return null;
+  }
+  return lastList;
+}
+
 export function startPlayerWatcher(telegram) {
   let previousPlayers = null;
   let timer = null;
@@ -25,6 +35,8 @@ export function startPlayerWatcher(telegram) {
         return;
       }
 
+      lastList = current;
+      lastListAt = Date.now();
       const currentPlayers = new Set(current.players);
       recordPlayerSnapshot(current.players);
 
