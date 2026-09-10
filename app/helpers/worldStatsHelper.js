@@ -48,10 +48,6 @@ function dateKey(parts = zonedParts()) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-function digestHourKey(parts = zonedParts()) {
-  return `${dateKey(parts)}-${parts.hour}`;
-}
-
 function isoWeekKey(parts = zonedParts()) {
   const utc = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
   const day = utc.getUTCDay() || 7;
@@ -481,40 +477,6 @@ function topEntries(map, limit = TOP_LIMIT) {
     .filter(([, value]) => Number(value) > 0)
     .sort((left, right) => Number(right[1]) - Number(left[1]) || left[0].localeCompare(right[0]))
     .slice(0, limit);
-}
-
-function digestMinIntervalMs() {
-  const ms = Number(config.server.digestIntervalMs);
-  return Number.isFinite(ms) && ms > 0 ? ms : HOUR_MS;
-}
-
-function lastDigestAgeMs(now = Date.now()) {
-  const postedAt = Number(state.lastDigestPostedAt);
-  if (!Number.isFinite(postedAt) || postedAt <= 0) {
-    return Infinity;
-  }
-  return now - postedAt;
-}
-
-export function shouldPostOnlineDigest(parts = zonedParts(), now = Date.now()) {
-  rotateBucketsIfNeeded();
-  const hourKey = digestHourKey(parts);
-  if (state.lastDigestPosted === hourKey) {
-    return false;
-  }
-  // Catch-up at 12:59 must not also fire when the clock rolls to 13:00.
-  if (lastDigestAgeMs(now) < digestMinIntervalMs()) {
-    state.lastDigestPosted = hourKey;
-    scheduleSave();
-    return false;
-  }
-  return true;
-}
-
-export function markOnlineDigestPosted(parts = zonedParts(), now = Date.now()) {
-  state.lastDigestPosted = digestHourKey(parts);
-  state.lastDigestPostedAt = now;
-  scheduleSave();
 }
 
 async function readMoonKey() {

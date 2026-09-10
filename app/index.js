@@ -41,6 +41,7 @@ function printStartupTable(apiRoot) {
     Weather: forum.weather,
     Events: forum.events,
     Chat: forum.chat,
+    Status: forum.status,
     Log: config.server.logPath,
     LocalApi: Boolean(apiRoot),
     Assets: config.assets.baseUrl || 'local files',

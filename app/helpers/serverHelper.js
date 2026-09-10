@@ -126,6 +126,23 @@ export async function fetchTime() {
   };
 }
 
+export async function fetchWorldSnapshot() {
+  const [listRaw, daytimeTicks, weather, moon, tps] = await Promise.all([
+    rconSend('list').catch(() => ''),
+    queryDaytimeTicks().catch(() => null),
+    queryWeather().catch(() => null),
+    fetchMoon().catch(() => null),
+    queryTps().catch(() => null),
+  ]);
+  return {
+    list: parsePlayerList(listRaw),
+    daytime: describeDaytime(daytimeTicks),
+    weather,
+    moon,
+    tps,
+  };
+}
+
 async function queryTpsRaw() {
   for (const command of ['spark tps', 'tps']) {
     const raw = await rconSend(command).catch(() => '');

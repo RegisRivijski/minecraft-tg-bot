@@ -440,15 +440,36 @@ export function joinLeaveText(events, current) {
   return lines.join('\n');
 }
 
-export function onlineDigestText({ list, daytime, weather, moon }) {
-  const lines = worldStatusLines({ moon, daytime, weather });
-  if (lines.length) {
-    lines.push('');
+export function statusBoardText({ list, daytime, weather, moon, tps }) {
+  const time = daytime?.phase === 'unknown' ? null : daytime;
+  const lines = [
+    `<b>${escapeHtml(config.server.motd)}</b>`,
+    '',
+    ...worldStatusLines({ weather, moon, daytime: time }),
+  ];
+  if (list?.ok) {
+    const tpsLine = formatTpsLine(tps);
+    if (tpsLine) {
+      lines.push(tpsLine);
+    }
   }
-  lines.push(
-    `<b>На сервере ${list.online} из ${list.max}</b>`,
-    formatPlayerNames(list.players),
-  );
+  lines.push('');
+  if (!list?.ok) {
+    lines.push(connectionLost());
+    return lines.join('\n');
+  }
+  lines.push(`Игроки <b>${list.online}</b> / ${list.max}`);
+  if (!list.players.length) {
+    lines.push('На сервере нет игроков.');
+    return lines.join('\n');
+  }
+  const shown = list.players.slice(0, 20);
+  for (const name of shown) {
+    lines.push(formatPlayerName(name));
+  }
+  if (list.players.length > shown.length) {
+    lines.push(`… +${list.players.length - shown.length}`);
+  }
   return lines.join('\n');
 }
 

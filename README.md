@@ -10,7 +10,7 @@ Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum
 - Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to **Події з серверу**
 - In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
 - The General topic (**Головний чат**) is ignored: the bot does not read or write there
-- Once an hour — who is online, if anyone is on the server (events topic)
+- A pinned live status message in the status topic: weather, moon, time, players
 - Operator commands: time, weather, whitelist, `/say`, raw RCON
 
 ## Structure
@@ -41,7 +41,7 @@ How to read the code:
 1. A Telegram command arrives → `app/routes/index.js`
 2. The route calls a function in `controllers/`
 3. The controller reads data from `helpers/` and RCON, replies with copy from `copyHelper.js`
-4. Background jobs (players, log, weather, digest) start in `app/index.js`
+4. Background jobs (players, log, weather, status board) start in `app/index.js`
 
 Owner and forum group are set in `app/constants/access.js`.
 
@@ -82,7 +82,7 @@ MINECRAFT_POLL_INTERVAL_MS=5000
 MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
 MINECRAFT_WEATHER_POLL_MS=30000
-MINECRAFT_DIGEST_INTERVAL_MS=3600000
+MINECRAFT_STATUS_BOARD_POLL_MS=15000
 
 TELEGRAM_BOT_API_PROTOCOL=http:
 TELEGRAM_BOT_API_HOST=127.0.0.1

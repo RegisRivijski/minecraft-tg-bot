@@ -1,11 +1,11 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import config from '../../config/default.js';
-import { postMoonChange, postOnlineDigest, postToEvents, postWeatherChange } from './forumHelper.js';
+import { postMoonChange, postToEvents, postWeatherChange } from './forumHelper.js';
+import { startStatusBoard } from './statusBoardHelper.js';
 import {
   dailyRecapText,
   emptyWorldText,
   moonPhaseText,
-  onlineDigestText,
   tpsAlertText,
   tpsRecoveredText,
   weatherChangedText,
@@ -14,8 +14,6 @@ import {
 import { describeWeather, isNotableMoonPhase, parsePlayerList } from './minecraftHelper.js';
 import { fetchMoon, fetchTime, queryTps, queryWeather } from './serverHelper.js';
 import {
-  markOnlineDigestPosted,
-  shouldPostOnlineDigest,
   takeDailyRecap,
   takeEmptyWorldAnnouncement,
   takeMoonAnnouncement,
@@ -25,16 +23,16 @@ import {
 
 export function startChannelWatchers(telegram) {
   const stopWeather = startWeatherWatcher(telegram);
-  const stopDigest = startOnlineDigest(telegram);
   const stopTps = startTpsWatcher(telegram);
   const stopMoon = startMoonWatcher(telegram);
   const stopSchedule = startScheduleWatcher(telegram);
+  const stopStatus = startStatusBoard(telegram);
   return () => {
     stopWeather();
-    stopDigest();
     stopTps();
     stopMoon();
     stopSchedule();
+    stopStatus();
   };
 }
 
@@ -89,54 +87,6 @@ function startWeatherWatcher(telegram) {
   timer = setInterval(pollWeather, config.server.weatherPollMs);
   pollWeather();
   console.info(`[weather] polling every ${config.server.weatherPollMs}ms`);
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
-    }
-  };
-}
-
-function startOnlineDigest(telegram) {
-  let timer = null;
-  let inFlight = false;
-
-  const postDigest = async () => {
-    const parts = zonedParts();
-    if (inFlight || !shouldPostOnlineDigest(parts)) {
-      return;
-    }
-    inFlight = true;
-    try {
-      const [listRaw, { daytime }, weather, moon] = await Promise.all([
-        rconSend('list'),
-        fetchTime(),
-        queryWeather(),
-        fetchMoon(),
-      ]);
-      const list = parsePlayerList(listRaw);
-      if (!list.ok || !list.players.length) {
-        return;
-      }
-      console.info(`[digest] ${list.online} online`);
-      await postOnlineDigest(
-        telegram,
-        onlineDigestText({ list, daytime, weather, moon }),
-        weather?.key,
-        daytime,
-      );
-      markOnlineDigestPosted(parts);
-    } catch (err) {
-      console.warn('[digest]', err.message);
-    } finally {
-      inFlight = false;
-    }
-  };
-
-  timer = setInterval(postDigest, config.server.recapPollMs);
-  postDigest();
-  console.info(`[digest] once per clock hour (${config.server.timeZone}), persists across restarts`);
 
   return () => {
     if (timer) {

@@ -4,3 +4,4 @@ node_modules/
 .env
 package-lock.json
 tg-bot-stats.json
+tg-bot-status-board.json
