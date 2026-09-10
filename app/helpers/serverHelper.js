@@ -7,7 +7,6 @@ import {
   parseDifficulty,
   parseGamerule,
   parsePlayerList,
-  PLAYER_LIST_COMMAND,
   parseSeed,
   parseTimeQuery,
   parseTps,
@@ -109,7 +108,7 @@ export async function fetchServer() {
     whitelistRaw,
     gamerules,
   ] = await Promise.all([
-    rconSend(PLAYER_LIST_COMMAND),
+    rconSend('list'),
     fetchWorldClock(),
     queryWeather(),
     rconSend('difficulty').catch(() => ''),
@@ -163,7 +162,7 @@ export async function fetchWorldClock() {
 export async function fetchWorldSnapshot() {
   const cachedList = recentPlayerList();
   const [listRaw, clock, weather, tps] = await Promise.all([
-    cachedList ? Promise.resolve('') : rconSend(PLAYER_LIST_COMMAND).catch(() => ''),
+    cachedList ? Promise.resolve('') : rconSend('list').catch(() => ''),
     fetchWorldClock(),
     queryWeather().catch(() => null),
     queryTps().catch(() => null),

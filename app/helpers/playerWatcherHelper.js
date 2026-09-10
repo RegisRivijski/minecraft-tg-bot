@@ -1,5 +1,5 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
-import { parsePlayerList, PLAYER_LIST_COMMAND } from './minecraftHelper.js';
+import { parsePlayerList } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
 import { recordPlayerSnapshot } from './worldStatsHelper.js';
 import config from '../../config/default.js';
@@ -26,7 +26,7 @@ export function startPlayerWatcher(telegram) {
     }
     inFlight = true;
     try {
-      const current = parsePlayerList(await rconSend(PLAYER_LIST_COMMAND));
+      const current = parsePlayerList(await rconSend('list'));
       if (!current.ok) {
         if (Date.now() - lastWarnAt > 60000) {
           console.warn('[watcher] unexpected list response:', current.raw);

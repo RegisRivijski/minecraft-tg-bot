@@ -17,9 +17,6 @@ export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }
 
-// Vanilla command — plugins like TAB often override plain `list` with extra placeholders.
-export const PLAYER_LIST_COMMAND = 'minecraft:list';
-
 function splitPlayerNames(namesRaw) {
   return String(namesRaw || '')
     .split(',')
