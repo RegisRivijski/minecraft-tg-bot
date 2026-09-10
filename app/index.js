@@ -43,7 +43,7 @@ function printStartupTable(apiRoot) {
     Status: forum.status,
     Log: config.server.logPath,
     LocalApi: Boolean(apiRoot),
-    Assets: config.assets.baseUrl || 'local files',
+    Assets: config.assets.baseUrl || '—',
   });
 }
 

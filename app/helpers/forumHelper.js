@@ -1,7 +1,4 @@
-import { createReadStream } from 'node:fs';
-import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import config from '../../config/default.js';
 import { GROUP_ID, TOPIC_THREADS } from '../constants/access.js';
@@ -41,10 +38,6 @@ function moonAsset(name) {
   return `moon/${name}.jpg`;
 }
 
-function localAssetPath(relativePath) {
-  return fileURLToPath(new URL(`../assets/${relativePath}`, import.meta.url));
-}
-
 function publicAssetUrl(relativePath) {
   const base = config.assets.baseUrl;
   if (!base) {
@@ -52,17 +45,6 @@ function publicAssetUrl(relativePath) {
   }
   return `${base}/${relativePath}`;
 }
-
-const MOON_IMAGES = {
-  full: moonAsset('full'),
-  waning_gibbous: moonAsset('waning-gibbous'),
-  third_quarter: moonAsset('third-quarter'),
-  waning_crescent: moonAsset('waning-crescent'),
-  new: moonAsset('new'),
-  waxing_crescent: moonAsset('waxing-crescent'),
-  first_quarter: moonAsset('first-quarter'),
-  waxing_gibbous: moonAsset('waxing-gibbous'),
-};
 
 const MOON_WEATHER_IMAGES = {
   full: {
@@ -155,70 +137,52 @@ export async function warnIfForumMisconfigured(telegram) {
   }
 }
 
-const localAssetCache = new Map();
+const missingNginxAssets = new Set();
+let missingAssetsBaseLogged = false;
 
-async function localAssetExists(relativePath) {
-  if (localAssetCache.has(relativePath)) {
-    return localAssetCache.get(relativePath);
-  }
-  try {
-    await access(localAssetPath(relativePath));
-    localAssetCache.set(relativePath, true);
-    return true;
-  } catch {
-    localAssetCache.set(relativePath, false);
-    return false;
-  }
-}
-
-async function imagePath(map, key) {
+function imagePath(map, key) {
   const relativePath = map?.[key];
-  if (!relativePath) {
+  if (!relativePath || missingNginxAssets.has(relativePath) || !publicAssetUrl(relativePath)) {
     return null;
   }
-  if (publicAssetUrl(relativePath) || await localAssetExists(relativePath)) {
-    return relativePath;
-  }
-  return null;
+  return relativePath;
 }
 
 function weatherKeyOrClear(key) {
   return WEATHER_IMAGES[key] ? key : 'clear';
 }
 
-async function weatherImagePath(key, phase) {
+function weatherImagePath(key, phase) {
   const weather = weatherKeyOrClear(key);
-  const timed = await imagePath(WEATHER_PHASE_IMAGES[weather], phase);
-  if (timed) {
-    return timed;
-  }
-  return imagePath(WEATHER_IMAGES, weather);
+  return imagePath(WEATHER_PHASE_IMAGES[weather], phase)
+    || imagePath(WEATHER_IMAGES, weather);
 }
 
-async function moonImagePath(key, weatherKey) {
-  const byWeather = await imagePath(MOON_WEATHER_IMAGES[key], weatherKey);
-  if (byWeather) {
-    return byWeather;
-  }
-  return imagePath(MOON_IMAGES, key);
+function moonImagePath(key, weatherKey) {
+  return imagePath(MOON_WEATHER_IMAGES[key], weatherKey);
 }
 
 function isNightPhase(phase) {
   return phase === 'night' || phase === 'midnight';
 }
 
-export async function statusBoardImagePath({ weatherKey, daytime, moon }) {
+export function statusBoardImagePath({ weatherKey, daytime, moon }) {
+  if (!config.assets.baseUrl) {
+    if (!missingAssetsBaseLogged) {
+      missingAssetsBaseLogged = true;
+      console.warn('[forum] MINECRAFT_ASSETS_BASE_URL is empty — status photos need nginx');
+    }
+    return null;
+  }
   const weather = weatherKeyOrClear(weatherKey);
   if (isNightPhase(daytime?.phase) && moon?.key) {
-    const moonImage = await moonImagePath(moon.key, weather);
+    const moonImage = moonImagePath(moon.key, weather);
     if (moonImage) {
       return moonImage;
     }
   }
-  return (await weatherImagePath(weather, daytime?.phase))
-    || WEATHER_PHASE_IMAGES[weather]?.[daytime?.phase]
-    || WEATHER_IMAGES[weather]
-    || WEATHER_IMAGES.clear;
+  return weatherImagePath(weather, daytime?.phase)
+    || imagePath(WEATHER_IMAGES, 'clear');
 }
 
 function photoFileId(message) {
@@ -263,10 +227,11 @@ function rememberFileId(fileIds, relativePath, message) {
 async function nginxPhoto(relativePath) {
   const url = publicAssetUrl(relativePath);
   if (!url) {
-    return null;
+    throw new Error('MINECRAFT_ASSETS_BASE_URL is not set');
   }
   const response = await fetch(url);
   if (!response.ok) {
+    missingNginxAssets.add(relativePath);
     throw new Error(`asset ${response.status} ${url}`);
   }
   return {
@@ -275,27 +240,11 @@ async function nginxPhoto(relativePath) {
   };
 }
 
-let nginxFetchWarned = false;
-
 async function photoMedia(relativePath, fileIds = {}) {
   if (fileIds[relativePath]) {
     return fileIds[relativePath];
   }
-  const url = publicAssetUrl(relativePath);
-  if (url) {
-    try {
-      return await nginxPhoto(relativePath);
-    } catch (err) {
-      if (!nginxFetchWarned) {
-        nginxFetchWarned = true;
-        console.warn('[forum] nginx fetch failed:', err.message);
-      }
-    }
-  }
-  return {
-    source: createReadStream(localAssetPath(relativePath)),
-    filename: path.basename(relativePath),
-  };
+  return nginxPhoto(relativePath);
 }
 
 async function withOpenTopic(telegram, chatId, threadId, task) {
