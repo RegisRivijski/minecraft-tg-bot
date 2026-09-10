@@ -17,12 +17,21 @@ export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }
 
-// RCON: player list
+// Vanilla command — plugins like TAB often override plain `list` with extra placeholders.
+export const PLAYER_LIST_COMMAND = 'minecraft:list';
+
 function splitPlayerNames(namesRaw) {
   return String(namesRaw || '')
     .split(',')
     .map((name) => name.replace(/\s*\([^)]*\)\s*$/, '').trim())
     .filter(Boolean);
+}
+
+function listedPlayerNames(namesRaw, online) {
+  if (!Number.isFinite(online) || online <= 0) {
+    return [];
+  }
+  return splitPlayerNames(namesRaw).filter(isMinecraftNick);
 }
 
 export function parsePlayerList(raw) {
@@ -39,11 +48,12 @@ export function parsePlayerList(raw) {
     if (!match) {
       continue;
     }
+    const online = Number(match[1]);
     return {
       ok: true,
-      online: Number(match[1]),
+      online,
       max: Number(match[2]),
-      players: splitPlayerNames(match[3]),
+      players: listedPlayerNames(match[3], online),
       raw: text,
     };
   }
@@ -381,12 +391,18 @@ export function parseJoinLeaveLine(raw) {
 
   const joined = payload.match(JOIN_LINE);
   if (joined?.groups?.name) {
-    return { type: 'join', name: joined.groups.name.trim() };
+    const name = joined.groups.name.trim();
+    if (isMinecraftNick(name)) {
+      return { type: 'join', name };
+    }
   }
 
   const left = payload.match(LEAVE_LINE);
   if (left?.groups?.name) {
-    return { type: 'leave', name: left.groups.name.trim() };
+    const name = left.groups.name.trim();
+    if (isMinecraftNick(name)) {
+      return { type: 'leave', name };
+    }
   }
 
   return null;
