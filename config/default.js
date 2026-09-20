@@ -38,7 +38,7 @@ export default {
     logPath,
     logPollMs: Number(process.env.MINECRAFT_LOG_POLL_MS || 1000),
     statusBoardPollMs: Number(process.env.MINECRAFT_STATUS_BOARD_POLL_MS || 15000),
-    tpsPollMs: Number(process.env.MINECRAFT_TPS_POLL_MS || 15000),
+    tpsPollMs: Number(process.env.MINECRAFT_TPS_POLL_MS || 30000),
     tpsAlertBelow: Number(process.env.MINECRAFT_TPS_ALERT_BELOW || 15),
     tpsRecoverAt: Number(process.env.MINECRAFT_TPS_RECOVER_AT || 18),
     emptyWorldHours: String(process.env.MINECRAFT_EMPTY_WORLD_HOURS || '3,9,18')

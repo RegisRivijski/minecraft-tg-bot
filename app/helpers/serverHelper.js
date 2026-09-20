@@ -1,3 +1,4 @@
+import config from '../../config/default.js';
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import {
   describeDaytime,
@@ -21,6 +22,8 @@ import { ownerWorldStats } from './worldStatsHelper.js';
 
 let daytimeCommand = null;
 let tpsCommand = null;
+let cachedTpsRaw = '';
+let lastTpsAt = 0;
 let weatherQueryWorks = null;
 let weatherCheckBuilder = null;
 
@@ -112,7 +115,7 @@ export async function fetchServer() {
     fetchWorldClock(),
     queryWeather(),
     rconSend('difficulty').catch(() => ''),
-    queryTpsRaw(),
+    queryTpsRaw({ fresh: true }),
     rconSend('seed').catch(() => ''),
     rconSend('whitelist list').catch(() => ''),
     queryGamerules().catch(() => ({})),
@@ -176,7 +179,7 @@ export async function fetchWorldSnapshot() {
   };
 }
 
-async function queryTpsRaw() {
+async function discoverTpsRaw() {
   if (tpsCommand) {
     const raw = await rconSend(tpsCommand).catch(() => '');
     if (parseTpsWindows(raw)) {
@@ -192,6 +195,22 @@ async function queryTpsRaw() {
     }
   }
   return '';
+}
+
+async function queryTpsRaw({ fresh = false } = {}) {
+  const now = Date.now();
+  // Status board polls often; Spark TPS is the expensive RCON. /server always refreshes.
+  if (!fresh && lastTpsAt && now - lastTpsAt < config.server.tpsPollMs) {
+    return cachedTpsRaw;
+  }
+
+  const raw = await discoverTpsRaw();
+  lastTpsAt = now;
+  if (parseTpsWindows(raw)) {
+    cachedTpsRaw = raw;
+    return raw;
+  }
+  return cachedTpsRaw;
 }
 
 export async function queryTps() {

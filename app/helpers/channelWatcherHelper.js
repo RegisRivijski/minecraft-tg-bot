@@ -1,5 +1,6 @@
 import config from '../../config/default.js';
 import { postToEvents } from './forumHelper.js';
+import { startPolling } from './pollHelper.js';
 import { startStatusBoard } from './statusBoardHelper.js';
 import {
   dailyRecapText,
@@ -52,48 +53,25 @@ function createTpsAlerter() {
 }
 
 function startScheduleWatcher(telegram) {
-  let timer = null;
-  let inFlight = false;
-
-  const pollSchedule = async () => {
-    if (inFlight) {
-      return;
-    }
-    inFlight = true;
-    try {
-      const empty = takeEmptyWorldAnnouncement();
-      if (empty) {
-        console.info(`[empty] ${empty.days ? `${empty.days}d` : `${empty.hours}h`}`);
-        await postToEvents(telegram, emptyWorldText(empty));
-      }
-
-      const parts = zonedParts();
-      const daily = takeDailyRecap(parts);
-      if (daily) {
-        console.info(`[recap] daily players=${daily.players.length} deaths=${daily.deaths}`);
-        await postToEvents(telegram, dailyRecapText(daily));
-      }
-
-      const weekly = takeWeeklyRecap(parts);
-      if (weekly) {
-        console.info(`[recap] weekly play=${weekly.playTop.length} deaths=${weekly.deathTop.length}`);
-        await postToEvents(telegram, weeklyRecapText(weekly));
-      }
-    } catch (err) {
-      console.warn('[schedule]', err.message);
-    } finally {
-      inFlight = false;
-    }
-  };
-
-  timer = setInterval(pollSchedule, config.server.recapPollMs);
-  pollSchedule();
   console.info(`[schedule] daily ${config.server.dailyRecapHour}:00 ${config.server.timeZone}, empty at ${config.server.emptyWorldHours.join('/')}h then daily`);
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
+  return startPolling(async () => {
+    const empty = takeEmptyWorldAnnouncement();
+    if (empty) {
+      console.info(`[empty] ${empty.days ? `${empty.days}d` : `${empty.hours}h`}`);
+      await postToEvents(telegram, emptyWorldText(empty));
     }
-  };
+
+    const parts = zonedParts();
+    const daily = takeDailyRecap(parts);
+    if (daily) {
+      console.info(`[recap] daily players=${daily.players.length} deaths=${daily.deaths}`);
+      await postToEvents(telegram, dailyRecapText(daily));
+    }
+
+    const weekly = takeWeeklyRecap(parts);
+    if (weekly) {
+      console.info(`[recap] weekly play=${weekly.playTop.length} deaths=${weekly.deathTop.length}`);
+      await postToEvents(telegram, weeklyRecapText(weekly));
+    }
+  }, config.server.recapPollMs, { name: 'schedule' });
 }

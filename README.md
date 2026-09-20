@@ -81,6 +81,7 @@ MINECRAFT_POLL_INTERVAL_MS=5000
 MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
 MINECRAFT_STATUS_BOARD_POLL_MS=15000
+MINECRAFT_TPS_POLL_MS=30000
 
 TELEGRAM_BOT_API_PROTOCOL=http:
 TELEGRAM_BOT_API_HOST=127.0.0.1
@@ -95,7 +96,7 @@ TELEGRAM_BOT_API_PORT=8081
 npm start
 ```
 
-For development: `npm run dev` (node --watch).
+For development: `npm run dev` (node --watch). Parser tests: `npm test`.
 
 With Docker, pass the same variables into the container; `Dockerfile` runs `npm start`.
 

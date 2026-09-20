@@ -15,18 +15,11 @@ import {
   escapeHtml,
   isMinecraftNick,
   parseWhitelistList,
+  speakerName,
   stripMcColor,
 } from '../helpers/minecraftHelper.js';
 
 const RCON_REPLY_LIMIT = 3500;
-
-function speakerName(ctx) {
-  const from = ctx.from || {};
-  const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
-    || from.username
-    || String(from.id || 'Telegram');
-  return String(name).replace(/[\r\n]+/g, ' ').trim();
-}
 
 function formatRconReply(raw) {
   const text = stripMcColor(raw);

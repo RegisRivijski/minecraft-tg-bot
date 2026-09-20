@@ -1,5 +1,4 @@
 FROM node:20-alpine
-MAINTAINER "Artur Petrov petrov0397@gmail.com"
 
 RUN apk --no-cache upgrade && \
     apk --no-cache add tzdata && \
@@ -7,8 +6,8 @@ RUN apk --no-cache upgrade && \
     echo "Europe/Kyiv" > /etc/timezone
 
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY . .
 

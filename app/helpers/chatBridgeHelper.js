@@ -1,6 +1,6 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import { getGroupChatId, getThreadId, isChatTopicMessage, isForumGroup } from './forumHelper.js';
-import { stripMcColor } from './minecraftHelper.js';
+import { speakerName, stripMcColor } from './minecraftHelper.js';
 
 const MAX_TEXT = 200;
 
@@ -27,18 +27,6 @@ export async function warnIfBridgeCannotRead(telegram) {
   if (!getThreadId('chat')) {
     console.warn('[bridge] chat topic id is empty — fill TOPIC_THREADS.chat in app/constants/access.js');
   }
-}
-
-function speakerName(ctx) {
-  const senderChat = ctx.message?.sender_chat;
-  if (senderChat?.title) {
-    return String(senderChat.title).replace(/[\r\n]+/g, ' ').trim();
-  }
-  const from = ctx.from || {};
-  const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
-    || from.username
-    || String(from.id || 'Telegram');
-  return String(name).replace(/[\r\n]+/g, ' ').trim();
 }
 
 function messageText(message) {

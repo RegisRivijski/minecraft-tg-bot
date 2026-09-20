@@ -17,6 +17,18 @@ export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }
 
+export function speakerName(ctx) {
+  const senderChat = ctx.message?.sender_chat;
+  if (senderChat?.title) {
+    return String(senderChat.title).replace(/[\r\n]+/g, ' ').trim();
+  }
+  const from = ctx.from || {};
+  const name = [from.first_name, from.last_name].filter(Boolean).join(' ')
+    || from.username
+    || String(from.id || 'Telegram');
+  return String(name).replace(/[\r\n]+/g, ' ').trim();
+}
+
 function splitPlayerNames(namesRaw) {
   return String(namesRaw || '')
     .split(',')

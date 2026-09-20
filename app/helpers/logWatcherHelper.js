@@ -24,6 +24,7 @@ import {
   parseWorldEventLine,
 } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
+import { startPolling } from './pollHelper.js';
 import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin, recordLeave } from './worldStatsHelper.js';
 import { translateDeathMessage } from './langHelper.js';
 
@@ -199,8 +200,6 @@ export function startLogWatcher(telegram) {
   let readOffset = null;
   let incompleteLine = '';
   let textDecoder = new TextDecoder('utf-8');
-  let timer = null;
-  let inFlight = false;
   let missingLogged = false;
   let watchingLogged = false;
 
@@ -220,11 +219,7 @@ export function startLogWatcher(telegram) {
 
   console.info(`[log] starting watcher path=${config.server.logPath} poll=${config.server.logPollMs}ms`);
 
-  const pollLogFile = async () => {
-    if (inFlight) {
-      return;
-    }
-    inFlight = true;
+  return startPolling(async () => {
     try {
       const stat = await fs.stat(config.server.logPath);
       if (!watchingLogged) {
@@ -264,21 +259,9 @@ export function startLogWatcher(telegram) {
           missingLogged = true;
           watchingLogged = false;
         }
-      } else {
-        console.warn('[log]', err.message);
+        return;
       }
-    } finally {
-      inFlight = false;
+      throw err;
     }
-  };
-
-  timer = setInterval(pollLogFile, config.server.logPollMs);
-  pollLogFile();
-
-  return () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = null;
-    }
-  };
+  }, config.server.logPollMs, { name: 'log' });
 }
