@@ -5,8 +5,9 @@ Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum
 ## Features
 
 - DMs are available only to `OWNER_IDS`. Everyone else is ignored
-- World status in DMs: players, time of day, difficulty, TPS
+- World status in DMs: players, time of day, difficulty, TPS, `minecraft-data` size, last world save
 - Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to **Події з серверу**
+- Starter kit on EasyAuth **register** (bed, iron tools, food, wood, torches, 8 emeralds). Daily kit on **login** (and on that first register): weekday loot plus streak extras at 3 and every 7 days. Set `MINECRAFT_STARTER_KIT=0` or `MINECRAFT_DAILY_LOGIN_EMERALDS=0` to turn either off. Enable EasyAuth `log-player-login` / `log-player-registration` or the bot never sees the lines.
 - In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
 - The General topic (**Головний чат**) is ignored: the bot does not read or write there
 - A pinned live status message in the status topic: weather, moon, time, players
@@ -82,6 +83,8 @@ MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
 MINECRAFT_STATUS_BOARD_POLL_MS=15000
 MINECRAFT_TPS_POLL_MS=30000
+MINECRAFT_DAILY_LOGIN_EMERALDS=12
+MINECRAFT_STARTER_KIT=1
 
 TELEGRAM_BOT_API_PROTOCOL=http:
 TELEGRAM_BOT_API_HOST=127.0.0.1
@@ -108,7 +111,7 @@ Commands work only in DMs with the owner.
 | --- | --- |
 | `/start` | Greeting and server address |
 | `/help` | Command list |
-| `/server` | World status |
+| `/server` | World status, disk, last save |
 | `/list` | Players online |
 | `/time` | Time of day |
 | `/time day\|night\|noon\|midnight` | Set time |

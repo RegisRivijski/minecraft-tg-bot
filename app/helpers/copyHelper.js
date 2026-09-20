@@ -24,7 +24,7 @@ export function startText() {
 export function helpText() {
   return [
     '--- <b>Оператор</b> ---',
-    '/server — сводка мира',
+    '/server — сводка мира, диск, сейв',
     '/seed — зерно мира',
     '/say &lt;текст&gt; — сказать в чат мира',
     '/time day|night|noon|midnight — установить время',
@@ -41,7 +41,7 @@ export function noPermission() {
 
 export function serverMenu({
   list, daytime, weather, difficulty, tps, tpsWindows,
-  seed, moon, whitelist, gamerules, stats,
+  seed, moon, whitelist, gamerules, stats, host,
 }) {
   const lines = [
     `<b>${escapeHtml(config.server.motd)}</b>`,
@@ -88,6 +88,7 @@ export function serverMenu({
   }
 
   appendToday(lines, stats);
+  appendHost(lines, host);
   return lines.join('\n');
 }
 
@@ -202,6 +203,19 @@ function appendToday(lines, stats) {
   }
   if (stats.weekPlayTop?.length) {
     lines.push('', `Неделя: ${formatPlayTop(stats.weekPlayTop)}`);
+  }
+}
+
+function appendHost(lines, host) {
+  if (!host?.dataSize && !host?.saved) {
+    return;
+  }
+  lines.push('');
+  if (host.dataSize) {
+    lines.push(`minecraft-data: ${escapeHtml(host.dataSize)}`);
+  }
+  if (host.saved?.clock) {
+    lines.push(`Последний сейв: ${escapeHtml(host.saved.clock)} · ${escapeHtml(host.saved.ago)}`);
   }
 }
 
@@ -379,6 +393,20 @@ export function musicEventLine(event) {
     return `${who} включил музыку: ${escapeHtml(event.title)}`;
   }
   return `${who} включил музыку`;
+}
+
+export function kitText(name, title, labels) {
+  const loot = labels.filter(Boolean).join(', ');
+  return `${formatPlayerName(name)} · ${escapeHtml(title)}${loot ? `: ${escapeHtml(loot)}` : ''}`;
+}
+
+export function kitTellraw(title, labels) {
+  const loot = labels.filter(Boolean).join(', ');
+  return JSON.stringify({
+    text: String(title || 'Набор'),
+    color: 'green',
+    extra: loot ? [{ text: `\n${loot}`, color: 'gold' }] : [],
+  });
 }
 
 export function joinLeaveText(events, current) {

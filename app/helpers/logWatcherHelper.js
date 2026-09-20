@@ -16,6 +16,7 @@ import {
 } from './copyHelper.js';
 import {
   parseChatLine,
+  parseEasyAuthLine,
   parseJoinLeaveLine,
   parseMusicEventLine,
   parseNightSkipLine,
@@ -24,6 +25,7 @@ import {
   parseWorldEventLine,
 } from './minecraftHelper.js';
 import { notifyJoinLeave } from './joinNotifyHelper.js';
+import { onEasyAuth } from './rewardHelper.js';
 import { startPolling } from './pollHelper.js';
 import { notePlayerUuid, recordAdvancement, recordDeath, recordJoin, recordLeave } from './worldStatsHelper.js';
 import { translateDeathMessage } from './langHelper.js';
@@ -85,8 +87,14 @@ function classifyLogLines(lines) {
   const nightSkips = [];
   const serverLifecycle = [];
   const musicRaw = [];
+  const authEvents = [];
 
   for (const line of lines) {
+    const auth = parseEasyAuthLine(line);
+    if (auth) {
+      authEvents.push(auth);
+      continue;
+    }
     const lifecycle = parseServerLifecycleLine(line);
     if (lifecycle) {
       serverLifecycle.push(lifecycle);
@@ -154,6 +162,7 @@ function classifyLogLines(lines) {
     nightSkips,
     serverLifecycle,
     musicEvents: mergeMusicEvents(musicRaw),
+    authEvents,
   };
 }
 
@@ -168,11 +177,12 @@ async function forwardLogEvents(telegram, events) {
     nightSkips,
     serverLifecycle,
     musicEvents,
+    authEvents,
   } = events;
   const joinedCount = joinLeaveEvents.filter((event) => event.type === 'join').length;
   const leftCount = joinLeaveEvents.filter((event) => event.type === 'leave').length;
 
-  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length} music=${musicEvents.length}`);
+  console.info(`[log] matched chat=${chatMessages.length} join=${joinedCount} leave=${leftCount} deaths=${deaths.length} advancements=${advancements.length} pets=${petDeaths.length} first=${firstJoins.length} night=${nightSkips.length} lifecycle=${serverLifecycle.length} music=${musicEvents.length} auth=${authEvents.length}`);
 
   for (const event of serverLifecycle) {
     await postToEvents(
@@ -194,6 +204,9 @@ async function forwardLogEvents(telegram, events) {
   await postToEvents(telegram, petDeaths.join('\n'));
   await postToEvents(telegram, advancements.join('\n'), HTML_NO_PREVIEW);
   await notifyJoinLeave(telegram, { events: joinLeaveEvents });
+  for (const event of authEvents) {
+    await onEasyAuth(telegram, event);
+  }
 }
 
 export function startLogWatcher(telegram) {

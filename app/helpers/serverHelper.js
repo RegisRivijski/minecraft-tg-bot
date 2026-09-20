@@ -17,6 +17,7 @@ import {
   parseWhitelistList,
   TICKS_PER_DAY,
 } from './minecraftHelper.js';
+import { fetchHostStats } from './hostStatsHelper.js';
 import { recentPlayerList } from './playerWatcherHelper.js';
 import { ownerWorldStats } from './worldStatsHelper.js';
 
@@ -110,6 +111,7 @@ export async function fetchServer() {
     seedRaw,
     whitelistRaw,
     gamerules,
+    host,
   ] = await Promise.all([
     rconSend('list'),
     fetchWorldClock(),
@@ -119,6 +121,7 @@ export async function fetchServer() {
     rconSend('seed').catch(() => ''),
     rconSend('whitelist list').catch(() => ''),
     queryGamerules().catch(() => ({})),
+    fetchHostStats().catch(() => null),
   ]);
 
   const tpsWindows = parseTpsWindows(tpsRaw);
@@ -134,6 +137,7 @@ export async function fetchServer() {
     whitelist: parseWhitelistList(whitelistRaw),
     gamerules,
     stats: ownerWorldStats(),
+    host,
   };
 }
 

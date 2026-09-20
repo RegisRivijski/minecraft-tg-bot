@@ -8,6 +8,8 @@ import {
   escapeHtml,
   isMinecraftNick,
   parseChatLine,
+  parseEasyAuthLine,
+  parseGiveResult,
   parseJoinLeaveLine,
   parseMusicEventLine,
   parseNightSkipLine,
@@ -104,6 +106,12 @@ describe('RCON parsers', () => {
     assert.equal(whitelist.ok, true);
     assert.deepEqual(whitelist.players, ['Steve', 'Alex']);
   });
+
+  it('parses give command results', () => {
+    assert.equal(parseGiveResult('Gave 12 [Emerald] to Steve'), true);
+    assert.equal(parseGiveResult('No player was found'), false);
+    assert.equal(parseGiveResult('Incorrect argument for command'), false);
+  });
 });
 
 describe('log lines', () => {
@@ -166,6 +174,27 @@ describe('log lines', () => {
     );
     assert.equal(parseServerLifecycleLine(log('Done (4.2s)! For help, type "help"'))?.type, 'server_up');
     assert.equal(parseServerLifecycleLine(log('Stopping the server'))?.type, 'server_down');
+  });
+
+  it('parses EasyAuth login and register, not join or chat', () => {
+    const auth = (payload) => log(`[EasyAuth]: ${payload}`);
+    assert.deepEqual(
+      parseEasyAuthLine(auth('[LOGIN]: Player Steve provide correct password')),
+      { type: 'login', name: 'Steve' },
+    );
+    assert.deepEqual(
+      parseEasyAuthLine(auth('[REGISTER]: Player Steve{069a79f4-44e9-4726-a5be-fca374d1aa12} successfully registered')),
+      { type: 'register', name: 'Steve' },
+    );
+    const oldRegister = parseEasyAuthLine(
+      auth('[REGISTER]: Player Alex{uuid} successfully registered with password: hunter2'),
+    );
+    assert.deepEqual(oldRegister, { type: 'register', name: 'Alex' });
+    assert.equal(JSON.stringify(oldRegister).includes('hunter2'), false);
+    assert.equal(parseEasyAuthLine(auth('[LOGIN]: Player Steve provided wrong password')), null);
+    assert.equal(parseEasyAuthLine(auth('[LOGIN]: Player Steve is trying to login')), null);
+    assert.equal(parseEasyAuthLine(log('Steve joined the game')), null);
+    assert.equal(parseEasyAuthLine(log('<Steve> Player Alex provide correct password')), null);
   });
 });
 

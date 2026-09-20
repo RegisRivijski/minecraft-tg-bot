@@ -198,6 +198,37 @@ export function formatPlayerNames(players) {
 const EXECUTE_FAIL = /test failed|проверка не пройдена/i;
 const EXECUTE_PASS = /test passed|проверка пройдена/i;
 const COMMAND_ERROR = /incorrect argument|unknown or incomplete|syntax error|unexpected argument|unknown command|failed to parse|could not parse|malformed/i;
+const GIVE_FAIL = /no player was found|no entity was found|unknown item|player .+ was not found/i;
+
+export function parseGiveResult(raw) {
+  const text = stripMcColor(raw);
+  if (COMMAND_ERROR.test(text) || GIVE_FAIL.test(text)) {
+    return false;
+  }
+  return true;
+}
+
+const EASYAUTH_LOGIN_OK = /(?:\[LOGIN\]:\s*)?Player (?<name>[A-Za-z0-9_]{1,16}) provide[ds]? correct password/i;
+const EASYAUTH_REGISTER_OK = /(?:\[REGISTER\]:\s*)?Player (?<name>[A-Za-z0-9_]{1,16})(?:\{[^}]*\})? successfully registered/i;
+
+export function parseEasyAuthLine(raw) {
+  const payload = stripLogPayload(raw);
+  if (!payload || !/\[EasyAuth\]/i.test(payload)) {
+    return null;
+  }
+
+  const login = payload.match(EASYAUTH_LOGIN_OK);
+  if (login?.groups?.name) {
+    return { type: 'login', name: login.groups.name };
+  }
+
+  const registered = payload.match(EASYAUTH_REGISTER_OK);
+  if (registered?.groups?.name) {
+    return { type: 'register', name: registered.groups.name };
+  }
+
+  return null;
+}
 
 // RCON: TPS
 export function parseTpsWindows(raw) {

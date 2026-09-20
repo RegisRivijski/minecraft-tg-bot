@@ -59,7 +59,7 @@ function isoWeekKey(parts = zonedParts()) {
 
 function emptyDay(key) {
   return {
-    key, joined: {}, deaths: {}, advancements: {}, playMs: {},
+    key, joined: {}, deaths: {}, advancements: {}, playMs: {}, loginBonus: {},
   };
 }
 
@@ -86,6 +86,8 @@ function blankState() {
     lastDigestPostedAt: null,
     statusBoard: null,
     sessions: {},
+    starterGranted: {},
+    loginStreak: {},
   };
 }
 
@@ -112,6 +114,15 @@ function ensurePlayMaps() {
   }
   if (!state.sessions || typeof state.sessions !== 'object' || Array.isArray(state.sessions)) {
     state.sessions = {};
+  }
+  if (!state.day.loginBonus || typeof state.day.loginBonus !== 'object' || Array.isArray(state.day.loginBonus)) {
+    state.day.loginBonus = {};
+  }
+  if (!state.starterGranted || typeof state.starterGranted !== 'object' || Array.isArray(state.starterGranted)) {
+    state.starterGranted = {};
+  }
+  if (!state.loginStreak || typeof state.loginStreak !== 'object' || Array.isArray(state.loginStreak)) {
+    state.loginStreak = {};
   }
 }
 
@@ -215,6 +226,8 @@ async function writeStats() {
     lastDigestPosted: state.lastDigestPosted,
     lastDigestPostedAt: state.lastDigestPostedAt,
     statusBoard: state.statusBoard,
+    starterGranted: state.starterGranted,
+    loginStreak: state.loginStreak,
   };
   await fs.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`);
   await fs.rename(tmp, file);
@@ -285,6 +298,65 @@ export function setStatusBoard(pointer) {
   scheduleSave();
 }
 
+function asStreakMap(raw) {
+  const result = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return result;
+  }
+  for (const [key, value] of Object.entries(raw)) {
+    const name = playerName(key);
+    if (!name || !value || typeof value !== 'object') {
+      continue;
+    }
+    const count = Math.max(0, Number(value.count) || 0);
+    const lastDate = String(value.lastDate || '');
+    if (!count || !/^\d{4}-\d{2}-\d{2}$/.test(lastDate)) {
+      continue;
+    }
+    result[name] = { count, lastDate };
+  }
+  return result;
+}
+
+function shiftDateKey(key, days) {
+  const [year, month, day] = String(key).split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const utc = new Date(Date.UTC(year, month - 1, day + Number(days)));
+  return [
+    utc.getUTCFullYear(),
+    String(utc.getUTCMonth() + 1).padStart(2, '0'),
+    String(utc.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function previewLoginStreak(name) {
+  const today = dateKey();
+  const previous = state.loginStreak[name];
+  if (previous?.lastDate === today) {
+    return Number(previous.count) || 1;
+  }
+  if (previous?.lastDate === shiftDateKey(today, -1)) {
+    return (Number(previous.count) || 0) + 1;
+  }
+  return 1;
+}
+
+function asFlagMap(raw) {
+  const result = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return result;
+  }
+  for (const [key, value] of Object.entries(raw)) {
+    const name = playerName(key);
+    if (name && value) {
+      result[name] = true;
+    }
+  }
+  return result;
+}
+
 function asCountMap(raw) {
   const result = {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -322,6 +394,7 @@ function mergeLoaded(raw) {
       deaths: asCountMap(raw.day.deaths),
       advancements: asCountMap(raw.day.advancements),
       playMs: asCountMap(raw.day.playMs),
+      loginBonus: asFlagMap(raw.day.loginBonus),
     };
   }
   if (raw.week?.key) {
@@ -348,6 +421,8 @@ function mergeLoaded(raw) {
   const postedAt = Number(raw.lastDigestPostedAt);
   next.lastDigestPostedAt = Number.isFinite(postedAt) && postedAt > 0 ? postedAt : null;
   next.statusBoard = asStatusBoard(raw.statusBoard);
+  next.starterGranted = asFlagMap(raw.starterGranted);
+  next.loginStreak = asStreakMap(raw.loginStreak);
   next.sessions = {};
   return next;
 }
@@ -414,6 +489,78 @@ export function notePlayerUuid(uuid, name) {
   markJoined(nick);
   scheduleSave();
   return true;
+}
+
+export function tryClaimDailyLoginBonus(name) {
+  const key = playerName(name);
+  if (!key) {
+    return null;
+  }
+  rotateBucketsIfNeeded();
+  ensurePlayMaps();
+  if (state.day.loginBonus[key]) {
+    return null;
+  }
+  state.day.loginBonus[key] = true;
+  return {
+    streak: previewLoginStreak(key),
+    weekday: weekdayNumber(),
+  };
+}
+
+export function confirmDailyLoginBonus(name) {
+  const key = playerName(name);
+  if (key) {
+    rotateBucketsIfNeeded();
+    ensurePlayMaps();
+    state.loginStreak[key] = {
+      count: previewLoginStreak(key),
+      lastDate: dateKey(),
+    };
+  }
+  scheduleSave();
+}
+
+export function releaseDailyLoginBonus(name) {
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  rotateBucketsIfNeeded();
+  ensurePlayMaps();
+  if (!state.day.loginBonus[key]) {
+    return;
+  }
+  delete state.day.loginBonus[key];
+}
+
+export function tryClaimStarterKit(name) {
+  const key = playerName(name);
+  if (!key) {
+    return false;
+  }
+  ensurePlayMaps();
+  if (state.starterGranted[key]) {
+    return false;
+  }
+  state.starterGranted[key] = true;
+  return true;
+}
+
+export function confirmStarterKit() {
+  scheduleSave();
+}
+
+export function releaseStarterKit(name) {
+  const key = playerName(name);
+  if (!key) {
+    return;
+  }
+  ensurePlayMaps();
+  if (!state.starterGranted[key]) {
+    return;
+  }
+  delete state.starterGranted[key];
 }
 
 export function recordJoin(name) {
