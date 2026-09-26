@@ -239,10 +239,14 @@ export function parseTpsWindows(raw) {
 
   // Paper: "TPS from last 1m, 5m, 15m: 20.0, 20.0, 20.0"
   // Spark: numbers on the next line after "TPS from last 5s, 10s, …:"
-  const tpsSeries = text.match(/TPS from last[^\n]*:\s*(?:\n\s*)?([0-9]+(?:\.[0-9]+)?(?:\s*,\s*[0-9]+(?:\.[0-9]+)?)*)/i);
-  const labeled = text.match(/tps[^:\n]*:\s*([0-9.,\s]+)/i);
-  const source = tpsSeries?.[1] || labeled?.[1] || text;
-  const windows = [...source.matchAll(/(\d+(?:\.\d+)?)/g)]
+  // Do not scan the rest of the report — idle tick duration / CPU is ~1.0.
+  const header = text.match(/TPS from last[^\n]*:/i);
+  if (!header) {
+    return null;
+  }
+  const after = text.slice(header.index + header[0].length);
+  const section = after.split(/\n\s*(?:Tick durations|CPU usage|MSPT|Memory usage)\b/i)[0];
+  const windows = [...section.matchAll(/(\d+(?:\.\d+)?)/g)]
     .map((match) => Number(match[1]))
     .filter((value) => Number.isFinite(value) && value <= 21);
   if (!windows.length) {
@@ -357,7 +361,8 @@ export function timeSetLabel(key) {
 
 export function parseSeed(raw) {
   const text = stripMcColor(raw);
-  const match = text.match(/(-?\d{2,})/);
+  // Require the Seed: label. A bare first number is often Spark TPS ("20.0").
+  const match = text.match(/\bseed\b[:\s]*\[?\s*(-?\d+)\s*\]?/i);
   return match ? match[1] : null;
 }
 

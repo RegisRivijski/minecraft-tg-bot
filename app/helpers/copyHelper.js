@@ -71,7 +71,7 @@ export function serverMenu({
   lines.push('');
   lines.push(...worldStatusLines({ weather, moon, daytime }));
   if (seed) {
-    lines.push(`Зерно: <code>${escapeHtml(seed)}</code>`);
+    lines.push(`Зерно мира: <code>${escapeHtml(seed)}</code>`);
   }
 
   const ruleLine = formatGameruleLine(gamerules);

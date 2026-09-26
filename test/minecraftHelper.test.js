@@ -99,9 +99,30 @@ describe('RCON parsers', () => {
     );
   });
 
+  it('does not treat Spark tick duration or CPU 1.0 as TPS', () => {
+    const spark = [
+      'TPS from last 5s, 10s, 1m, 5m, 15m:',
+      '20.0, 20.0, 20.0, 20.0, 20.0',
+      '',
+      'Tick durations (min/med/95%ile/max ms) from last 10s, 1m:',
+      '1.0 / 1.2 / 2.0 / 4.0; 1.0 / 1.1 / 1.8 / 3.5',
+      '',
+      'CPU usage from last 10s, 1m, 15m:',
+      '1.0%, 1.2%, 1.4% (system)',
+    ].join('\n');
+    assert.deepEqual(parseTpsWindows(spark), {
+      current: 20,
+      windows: [20, 20, 20],
+    });
+    assert.equal(parseTpsWindows('Tick durations (min/med/95%ile/max ms): 1.0 / 1.2 / 2.0 / 4.0'), null);
+  });
+
   it('parses weather, seed, and whitelist', () => {
     assert.equal(parseWeatherQuery('The weather is raining'), 'rain');
     assert.equal(parseSeed('Seed: [123456789]'), '123456789');
+    assert.equal(parseSeed('Seed: [1125954320687975079]'), '1125954320687975079');
+    assert.equal(parseSeed('§eSeed: [§a1125954320687975079§e]'), '1125954320687975079');
+    assert.equal(parseSeed('TPS from last 5s, 10s, 1m, 5m, 15m:\n20.0, 19.9, 19.8'), null);
     const whitelist = parseWhitelistList('There are 2 whitelisted players: Steve, Alex');
     assert.equal(whitelist.ok, true);
     assert.deepEqual(whitelist.players, ['Steve', 'Alex']);
