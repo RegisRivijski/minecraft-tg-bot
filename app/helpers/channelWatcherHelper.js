@@ -31,7 +31,7 @@ export function startChannelWatchers(telegram) {
 function createTpsAlerter() {
   let lagging = null;
   return async function noteTps(telegram, tps) {
-    if (tps == null) {
+    if (tps == null || tps < 0.5) {
       return;
     }
     if (lagging == null) {

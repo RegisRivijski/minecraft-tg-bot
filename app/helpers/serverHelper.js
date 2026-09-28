@@ -25,8 +25,12 @@ let daytimeCommand = null;
 let tpsCommand = null;
 let cachedTpsRaw = '';
 let lastTpsAt = 0;
+let lastGameTicks = null;
+let lastGameTicksAt = 0;
 let weatherQueryWorks = null;
 let weatherCheckBuilder = null;
+
+const TPS_COMMANDS = ['tick query', 'spark tps', 'tps'];
 
 async function queryDaytimeTicks() {
   if (daytimeCommand) {
@@ -124,7 +128,7 @@ export async function fetchServer() {
     fetchHostStats().catch(() => null),
   ]);
 
-  const tpsWindows = parseTpsWindows(tpsRaw);
+  const tpsWindows = resolveTps(parseTpsWindows(tpsRaw), clock.gametime);
   return {
     list: parsePlayerList(listRaw),
     daytime: clock.daytime,
@@ -153,6 +157,7 @@ export async function fetchWorldClock() {
     return {
       daytime: describeDaytime(gametime == null ? null : normalizeDayTicks(gametime)),
       moon: gametime == null ? null : describeMoonPhase(Math.floor(gametime / TICKS_PER_DAY)),
+      gametime,
     };
   }
   const [daytimeTicks, gametime] = await Promise.all([
@@ -163,6 +168,7 @@ export async function fetchWorldClock() {
   return {
     daytime: describeDaytime(daytimeTicks),
     moon: ticks == null ? null : describeMoonPhase(Math.floor(ticks / TICKS_PER_DAY)),
+    gametime: ticks,
   };
 }
 
@@ -179,26 +185,65 @@ export async function fetchWorldSnapshot() {
     daytime: clock.daytime,
     weather,
     moon: clock.moon,
-    tps,
+    tps: resolveTps({ current: tps, windows: tps == null ? null : [tps] }, clock.gametime)?.current ?? tps,
   };
 }
 
 async function discoverTpsRaw() {
-  if (tpsCommand) {
-    const raw = await rconSend(tpsCommand).catch(() => '');
-    if (parseTpsWindows(raw)) {
-      return raw;
-    }
-    tpsCommand = null;
-  }
-  for (const command of ['spark tps', 'tps']) {
+  const commands = tpsCommand
+    ? [tpsCommand, ...TPS_COMMANDS.filter((command) => command !== tpsCommand)]
+    : TPS_COMMANDS;
+  let fallback = '';
+  for (const command of commands) {
     const raw = await rconSend(command).catch(() => '');
-    if (parseTpsWindows(raw)) {
+    const parsed = parseTpsWindows(raw);
+    if (parsed && (parsed.current >= 1 || command === 'tick query')) {
+      if (tpsCommand !== command) {
+        console.info(`[tps] using ${command}`);
+      }
       tpsCommand = command;
       return raw;
     }
+    if (parsed) {
+      fallback = raw;
+    }
   }
-  return '';
+  tpsCommand = null;
+  return fallback;
+}
+
+function measureTpsFromGametime(ticks) {
+  const now = Date.now();
+  let measured = null;
+  if (lastGameTicks != null && Number.isFinite(ticks) && now > lastGameTicksAt) {
+    const seconds = (now - lastGameTicksAt) / 1000;
+    const delta = ticks - lastGameTicks;
+    if (seconds >= 5 && delta >= 0) {
+      const tps = delta / seconds;
+      if (tps <= 21) {
+        measured = tps;
+      }
+    }
+  }
+  if (Number.isFinite(ticks)) {
+    lastGameTicks = ticks;
+    lastGameTicksAt = now;
+  }
+  return measured;
+}
+
+function resolveTps(parsed, gametime) {
+  const measured = measureTpsFromGametime(gametime);
+  if (parsed?.current >= 1) {
+    return parsed;
+  }
+  if (measured >= 1) {
+    if (parsed?.current != null && parsed.current < 1) {
+      console.warn(`[tps] probe ${Number(parsed.current).toFixed(1)}, using gametime ${measured.toFixed(1)}`);
+    }
+    return { current: measured, windows: [measured] };
+  }
+  return parsed || null;
 }
 
 async function queryTpsRaw({ fresh = false } = {}) {

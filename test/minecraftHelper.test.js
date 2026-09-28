@@ -37,6 +37,10 @@ describe('escapeHtml / stripMcColor', () => {
   it('strips section and ANSI colors', () => {
     assert.equal(stripMcColor('§aSteve§r \u001b[0mhi'), 'Steve hi');
   });
+
+  it('strips hex colors so they are not parsed as 0.0 TPS', () => {
+    assert.equal(stripMcColor('<#00aa00>20.0</#00aa00> #00aa00'), '20.0');
+  });
 });
 
 describe('parsePlayerList', () => {
@@ -115,6 +119,35 @@ describe('RCON parsers', () => {
       windows: [20, 20, 20],
     });
     assert.equal(parseTpsWindows('Tick durations (min/med/95%ile/max ms): 1.0 / 1.2 / 2.0 / 4.0'), null);
+  });
+
+  it('ignores Spark 0.0 samples instead of reporting a dead server', () => {
+    const spark = [
+      'TPS from last 5s, 10s, 1m, 5m, 15m:',
+      '0.0, 0.0, 0.0, 0.0, 0.0',
+    ].join('\n');
+    assert.equal(parseTpsWindows(spark), null);
+    assert.deepEqual(
+      parseTpsWindows('TPS from last 5s, 10s, 1m, 5m, 15m:\n0.0, 0.0, 20.0, 20.0, 19.9'),
+      { current: 20, windows: [20, 20, 19.9] },
+    );
+  });
+
+  it('parses vanilla /tick query MSPT into TPS', () => {
+    const healthy = [
+      'The game is running normally',
+      'Target tick rate: 20.0 per second.',
+      'Average time per tick: 12.3ms (Target: 50.0ms)',
+      'Percentiles: P50: 11.1ms P95: 18.2ms P99: 22.0ms. Sample: 100',
+    ].join('\n');
+    assert.deepEqual(parseTpsWindows(healthy), { current: 20, windows: [20] });
+
+    const lagging = [
+      "The game is running, but can't keep up with the target tick rate",
+      'Target tick rate: 20.0 per second.',
+      'Average time per tick: 80.0ms (Target: 50.0ms)',
+    ].join('\n');
+    assert.equal(parseTpsWindows(lagging).current, 12.5);
   });
 
   it('parses weather, seed, and whitelist', () => {

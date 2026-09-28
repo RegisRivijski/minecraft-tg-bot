@@ -9,7 +9,10 @@ export function escapeHtml(text) {
 export function stripMcColor(text) {
   return String(text || '')
     .replace(/\u001b\[[0-9;]*m/g, '')
+    .replace(/§x(?:§[0-9a-fA-F]){6}/gi, '')
     .replace(/§[0-9a-fk-or]/gi, '')
+    .replace(/<\/?#[0-9a-fA-F]{3,8}>/g, '')
+    .replace(/#[0-9a-fA-F]{6}\b/g, '')
     .trim();
 }
 
@@ -236,7 +239,10 @@ export function parseTpsWindows(raw) {
   if (!text || COMMAND_ERROR.test(text)) {
     return null;
   }
+  return parseSparkTpsWindows(text) || parseTickQueryWindows(text);
+}
 
+function parseSparkTpsWindows(text) {
   // Paper: "TPS from last 1m, 5m, 15m: 20.0, 20.0, 20.0"
   // Spark: numbers on the next line after "TPS from last 5s, 10s, …:"
   // Do not scan the rest of the report — idle tick duration / CPU is ~1.0.
@@ -253,7 +259,30 @@ export function parseTpsWindows(raw) {
     return null;
   }
   const shown = windows.length > 3 ? windows.slice(-3) : windows;
-  return { current: shown[0], windows: shown };
+  // Spark's Fabric tick hook can sit at 0.0 while the world is fine. Zero is
+  // "no sample", not lag — skip it and fall through to /tick query.
+  const current = shown.find((value) => value >= 1);
+  if (current == null) {
+    return null;
+  }
+  return { current, windows: shown };
+}
+
+function parseTickQueryWindows(text) {
+  if (!/target tick rate|average time per tick/i.test(text)) {
+    return null;
+  }
+  if (/the game is frozen/i.test(text)) {
+    return { current: 0, windows: [0] };
+  }
+  const target = Number(text.match(/target tick rate:\s*(\d+(?:\.\d+)?)/i)?.[1]);
+  const mspt = Number(text.match(/average time per tick:\s*(\d+(?:\.\d+)?)/i)?.[1]);
+  const cap = Number.isFinite(target) && target > 0 ? target : 20;
+  if (!Number.isFinite(mspt) || mspt <= 0) {
+    return /running normally/i.test(text) ? { current: cap, windows: [cap] } : null;
+  }
+  const tps = Math.min(cap, 1000 / mspt);
+  return { current: tps, windows: [tps] };
 }
 
 export function parseTps(raw) {
