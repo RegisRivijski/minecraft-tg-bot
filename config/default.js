@@ -5,8 +5,22 @@ const packageJson = JSON.parse(
   fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 );
 
-const logPath = process.env.MINECRAFT_LOG_PATH || '/minecraft-data/logs/latest.log';
-const serverRoot = path.dirname(path.dirname(logPath));
+function envString(name) {
+  const value = process.env[name];
+  return value ? value : undefined;
+}
+
+function envNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || raw === '') {
+    return fallback;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const logPath = envString('MINECRAFT_LOG_PATH');
+const serverRoot = logPath ? path.dirname(path.dirname(logPath)) : undefined;
 
 export default {
   application: {
@@ -15,48 +29,48 @@ export default {
     description: packageJson.description,
   },
   bot: {
-    apiToken: process.env.MINECRAFT_TG_BOT_API_TOKEN,
+    apiToken: envString('MINECRAFT_TG_BOT_API_TOKEN'),
   },
   assets: {
-    baseUrl: (process.env.MINECRAFT_ASSETS_BASE_URL || '').replace(/\/$/, ''),
+    baseUrl: (envString('MINECRAFT_ASSETS_BASE_URL') || '').replace(/\/$/, ''),
   },
   telegramBotApi: {
-    protocol: process.env.TELEGRAM_BOT_API_PROTOCOL || 'http:',
-    host: process.env.TELEGRAM_BOT_API_HOST,
-    port: process.env.TELEGRAM_BOT_API_PORT,
+    protocol: envString('TELEGRAM_BOT_API_PROTOCOL'),
+    host: envString('TELEGRAM_BOT_API_HOST'),
+    port: envString('TELEGRAM_BOT_API_PORT'),
   },
   rcon: {
-    host: process.env.MINECRAFT_RCON_HOST || 'minecraft',
-    port: Number(process.env.MINECRAFT_RCON_PORT || 25575),
-    password: process.env.MINECRAFT_RCON_PASSWORD || 'local-only',
-    timeoutMs: Number(process.env.MINECRAFT_RCON_TIMEOUT_MS || 5000),
+    host: envString('MINECRAFT_RCON_HOST'),
+    port: envNumber('MINECRAFT_RCON_PORT'),
+    password: envString('MINECRAFT_RCON_PASSWORD'),
+    timeoutMs: envNumber('MINECRAFT_RCON_TIMEOUT_MS', 5000),
   },
   server: {
-    motd: process.env.MINECRAFT_MOTD || 'artur-petrov SMP',
-    address: process.env.MINECRAFT_ADDRESS || 'artur-petrov.vinnica.ua:25565',
-    pollIntervalMs: Number(process.env.MINECRAFT_POLL_INTERVAL_MS || 5000),
+    motd: envString('MINECRAFT_MOTD'),
+    address: envString('MINECRAFT_ADDRESS'),
+    pollIntervalMs: envNumber('MINECRAFT_POLL_INTERVAL_MS', 5000),
     logPath,
-    logPollMs: Number(process.env.MINECRAFT_LOG_POLL_MS || 1000),
-    statusBoardPollMs: Number(process.env.MINECRAFT_STATUS_BOARD_POLL_MS || 15000),
-    tpsPollMs: Number(process.env.MINECRAFT_TPS_POLL_MS || 30000),
-    tpsAlertBelow: Number(process.env.MINECRAFT_TPS_ALERT_BELOW || 15),
-    tpsRecoverAt: Number(process.env.MINECRAFT_TPS_RECOVER_AT || 18),
+    logPollMs: envNumber('MINECRAFT_LOG_POLL_MS', 1000),
+    statusBoardPollMs: envNumber('MINECRAFT_STATUS_BOARD_POLL_MS', 15000),
+    tpsPollMs: envNumber('MINECRAFT_TPS_POLL_MS', 30000),
+    tpsAlertBelow: envNumber('MINECRAFT_TPS_ALERT_BELOW', 15),
+    tpsRecoverAt: envNumber('MINECRAFT_TPS_RECOVER_AT', 18),
     emptyWorldHours: String(process.env.MINECRAFT_EMPTY_WORLD_HOURS || '3,9,18')
       .split(',')
       .map((value) => Number(value))
       .filter((value) => Number.isFinite(value) && value > 0),
-    dailyRecapHour: Number(process.env.MINECRAFT_DAILY_RECAP_HOUR || 21),
-    weeklyRecapWeekday: Number(process.env.MINECRAFT_WEEKLY_RECAP_WEEKDAY || 0),
-    recapPollMs: Number(process.env.MINECRAFT_RECAP_POLL_MS || 30000),
+    dailyRecapHour: envNumber('MINECRAFT_DAILY_RECAP_HOUR', 21),
+    weeklyRecapWeekday: envNumber('MINECRAFT_WEEKLY_RECAP_WEEKDAY', 0),
+    recapPollMs: envNumber('MINECRAFT_RECAP_POLL_MS', 30000),
     dailyLoginEmeralds: Math.min(
       64,
       Math.max(0, Number(process.env.MINECRAFT_DAILY_LOGIN_EMERALDS ?? 12) || 0),
     ),
     starterKit: String(process.env.MINECRAFT_STARTER_KIT ?? '1') !== '0',
-    timeZone: process.env.MINECRAFT_TZ || 'Europe/Kyiv',
-    dataDir: process.env.MINECRAFT_DATA_DIR || serverRoot,
-    worldPath: process.env.MINECRAFT_WORLD_PATH || path.join(serverRoot, 'world'),
-    statsPath: process.env.MINECRAFT_STATS_PATH || path.join(serverRoot, 'tg-bot-stats.json'),
-    usercachePath: process.env.MINECRAFT_USERCACHE_PATH || path.join(serverRoot, 'usercache.json'),
+    timeZone: envString('MINECRAFT_TZ'),
+    dataDir: envString('MINECRAFT_DATA_DIR') || serverRoot,
+    worldPath: envString('MINECRAFT_WORLD_PATH') || (serverRoot ? path.join(serverRoot, 'world') : undefined),
+    statsPath: envString('MINECRAFT_STATS_PATH') || (serverRoot ? path.join(serverRoot, 'tg-bot-stats.json') : undefined),
+    usercachePath: envString('MINECRAFT_USERCACHE_PATH') || (serverRoot ? path.join(serverRoot, 'usercache.json') : undefined),
   },
 };

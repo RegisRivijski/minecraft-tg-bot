@@ -18,7 +18,7 @@ let saveTimer = null;
 let previousOnline = null;
 
 function timeZone() {
-  return config.server.timeZone || 'Europe/Kyiv';
+  return config.server.timeZone || 'UTC';
 }
 
 export function zonedParts(date = new Date()) {

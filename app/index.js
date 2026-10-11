@@ -19,10 +19,17 @@ import { startLogWatcher } from './helpers/logWatcherHelper.js';
 import { flushWorldStats, initWorldStats } from './helpers/worldStatsHelper.js';
 
 function buildTelegramApiRoot() {
-  if (!config.telegramBotApi.host || !config.telegramBotApi.port) {
+  const { protocol, host, port } = config.telegramBotApi;
+  if (!protocol || !host || !port) {
     return undefined;
   }
-  return `${config.telegramBotApi.protocol}//${config.telegramBotApi.host}:${config.telegramBotApi.port}`;
+  return `${protocol}//${host}:${port}`;
+}
+
+function requireEnv(value, name) {
+  if (!value && value !== 0) {
+    throw new Error(`${name} is required`);
+  }
 }
 
 function createBot(apiRoot) {
@@ -63,9 +70,14 @@ function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher, stopChannel
 }
 
 export default async function main() {
-  if (!config.bot.apiToken) {
-    throw new Error('MINECRAFT_TG_BOT_API_TOKEN is required');
-  }
+  requireEnv(config.bot.apiToken, 'MINECRAFT_TG_BOT_API_TOKEN');
+  requireEnv(config.rcon.host, 'MINECRAFT_RCON_HOST');
+  requireEnv(config.rcon.port, 'MINECRAFT_RCON_PORT');
+  requireEnv(config.rcon.password, 'MINECRAFT_RCON_PASSWORD');
+  requireEnv(config.server.motd, 'MINECRAFT_MOTD');
+  requireEnv(config.server.address, 'MINECRAFT_ADDRESS');
+  requireEnv(config.server.logPath, 'MINECRAFT_LOG_PATH');
+  requireEnv(config.server.timeZone, 'MINECRAFT_TZ');
   if (!OWNER_IDS.length) {
     console.warn('[acl] OWNER_IDS is empty — fill app/constants/access.js');
   }

@@ -30,7 +30,7 @@ function formatSavedAt(mtimeMs) {
   if (!Number.isFinite(at) || at <= 0) {
     return null;
   }
-  const zone = config.server.timeZone || 'Europe/Kyiv';
+  const zone = config.server.timeZone || 'UTC';
   const clock = new Intl.DateTimeFormat('ru-RU', {
     timeZone: zone,
     hour: '2-digit',

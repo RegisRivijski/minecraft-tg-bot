@@ -6,9 +6,9 @@ Telegram bot for the **artur-petrov** SMP. DMs are the operator console. A forum
 
 - DMs are available only to `OWNER_IDS`. Everyone else is ignored
 - World status in DMs: players, time of day, difficulty, TPS, `minecraft-data` size, last world save
-- Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to **Події з серверу**
+- Joins, leaves, deaths, advancements, music plays (`/music`), TPS, recaps, and other events go to the **server events** topic (**Події з серверу**)
 - Starter kit on EasyAuth **register** (bed, iron tools, food, wood, torches, 8 emeralds). Daily kit on **login** (and on that first register): weekday loot plus streak extras at 3 and every 7 days. Set `MINECRAFT_STARTER_KIT=0` or `MINECRAFT_DAILY_LOGIN_EMERALDS=0` to turn either off. Enable EasyAuth `log-player-login` / `log-player-registration` or the bot never sees the lines.
-- In-game chat is mirrored to **Чат з сервером**; messages from that topic go into the world (`Name: text`)
+- In-game chat is mirrored to the **server chat** topic (**Чат з сервером**); messages from that topic go into the world (`Name: text`)
 - The General topic (**Головний чат**) is ignored: the bot does not read or write there
 - A pinned live status message in the status topic: weather, moon, time, players
 - Operator commands: time, weather, whitelist, `/say`, raw RCON
@@ -68,16 +68,19 @@ npm install
 
 4. Set environment variables (Docker, systemd, or the shell). This project does not load a `.env` file.
 
+Required: bot token, RCON host/port/password, MOTD, server address, log path, timezone. There are no in-code fallbacks for those.
+
 ```dotenv
 MINECRAFT_TG_BOT_API_TOKEN=your_telegram_bot_token
 
-MINECRAFT_RCON_HOST=minecraft
+MINECRAFT_RCON_HOST=127.0.0.1
 MINECRAFT_RCON_PORT=25575
 MINECRAFT_RCON_PASSWORD=your_rcon_password
 MINECRAFT_RCON_TIMEOUT_MS=5000
 
-MINECRAFT_MOTD=artur-petrov SMP
-MINECRAFT_ADDRESS=artur-petrov.vinnica.ua:25565
+MINECRAFT_MOTD=My SMP
+MINECRAFT_ADDRESS=play.example.com:25565
+MINECRAFT_TZ=Europe/Kyiv
 MINECRAFT_POLL_INTERVAL_MS=5000
 MINECRAFT_LOG_PATH=/minecraft-data/logs/latest.log
 MINECRAFT_LOG_POLL_MS=1000
