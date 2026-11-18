@@ -1,6 +1,6 @@
 import { rconSend } from '../classes/ServiceSingletons/RconSingleton.js';
 import { getGroupChatId, getThreadId, isChatTopicMessage, isForumGroup } from './forumHelper.js';
-import { speakerName, stripMcColor } from './minecraftHelper.js';
+import { speakerName, stripMcColor, stripTargetSelectors } from './minecraftHelper.js';
 
 const MAX_TEXT = 200;
 
@@ -90,7 +90,7 @@ export async function relayTelegramChat(ctx, next) {
   }
 
   const name = speakerName(ctx);
-  const line = `${name}: ${text}`.slice(0, MAX_TEXT);
+  const line = stripTargetSelectors(`${name}: ${text}`).slice(0, MAX_TEXT);
   try {
     await rconSend(`say ${line}`);
     console.info(`[bridge] ${line.slice(0, 120)}`);

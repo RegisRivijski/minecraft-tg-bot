@@ -16,6 +16,19 @@ export function stripMcColor(text) {
     .trim();
 }
 
+// `say` expands @a/@e/@n/@p/@r/@s (with optional [..] filters) into entity names.
+const TARGET_SELECTOR = /@[aenprs](?:\[[^\]]*\]?)?/g;
+
+export function stripTargetSelectors(text) {
+  let out = String(text || '');
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(TARGET_SELECTOR, '');
+  } while (out !== prev);
+  return out.replace(/\s{2,}/g, ' ').trim();
+}
+
 export function commandArgs(ctx) {
   return (ctx.message?.text || '').replace(/^\/\S+\s*/, '').trim();
 }

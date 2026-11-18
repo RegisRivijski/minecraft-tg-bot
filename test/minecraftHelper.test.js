@@ -24,6 +24,7 @@ import {
   parseWorldEventLine,
   speakerName,
   stripMcColor,
+  stripTargetSelectors,
   ticksToClock,
 } from '../app/helpers/minecraftHelper.js';
 
@@ -40,6 +41,11 @@ describe('escapeHtml / stripMcColor', () => {
 
   it('strips hex colors so they are not parsed as 0.0 TPS', () => {
     assert.equal(stripMcColor('<#00aa00>20.0</#00aa00> #00aa00'), '20.0');
+  });
+  it('strips target selectors before say', () => {
+    assert.equal(stripTargetSelectors('hi @a and @e[type=creeper] @s'), 'hi and');
+    assert.equal(stripTargetSelectors('@@aa @p[limit=1'), '');
+    assert.equal(stripTargetSelectors('mail me@x.com, @Steve'), 'mail me@x.com, @Steve');
   });
 });
 
