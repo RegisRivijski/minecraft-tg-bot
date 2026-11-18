@@ -59,9 +59,17 @@ function listenForShutdown({ bot, stopPlayerWatcher, stopLogWatcher, stopChannel
     stopPlayerWatcher();
     stopLogWatcher();
     stopChannelWatchers();
-    await flushWorldStats();
-    await closeRcon();
-    bot.stop(signal);
+    try {
+      bot.stop(signal);
+    } catch (error) {
+      console.warn('[shutdown]', error.message);
+    }
+    try {
+      await flushWorldStats();
+      await closeRcon();
+    } catch (error) {
+      console.error('[shutdown]', error.message);
+    }
     process.exit(0);
   };
 
@@ -103,16 +111,19 @@ export default async function main() {
   const stopLogWatcher = startLogWatcher(bot.telegram);
   const stopChannelWatchers = startChannelWatchers(bot.telegram);
 
-  await bot.launch({
-    allowedUpdates: ['message', 'my_chat_member'],
-  });
-  await registerBotCommands(bot).catch((error) => {
-    console.warn('[telegram] setMyCommands failed:', error.message);
-  });
-
-  printStartupTable(apiRoot);
   listenForShutdown({
     bot, stopPlayerWatcher, stopLogWatcher, stopChannelWatchers,
+  });
+
+  // With long polling, launch() resolves only after the bot stops,
+  // so startup work runs in the onLaunch callback.
+  await bot.launch({
+    allowedUpdates: ['message', 'my_chat_member'],
+  }, () => {
+    registerBotCommands(bot).catch((error) => {
+      console.warn('[telegram] setMyCommands failed:', error.message);
+    });
+    printStartupTable(apiRoot);
   });
 
   return bot;
